@@ -46,7 +46,8 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
             readFilesConfirmation: true,
             writeFilesConfirmation: true,
             commandSafetyMode: 'smart',
-            alwaysProceed: false
+            alwaysProceed: false,
+            enableTerminalSandbox: false
         },
         ui: {
             sidebarPosition: 'right',
@@ -228,12 +229,17 @@ export class SettingsManager {
 
         // Migration from runCommandsConfirmation to commandSafetyMode
         if (stored.permissions && 'runCommandsConfirmation' in stored.permissions) {
-            const oldVal = (stored.permissions as any).runCommandsConfirmation;
-            if (oldVal === true) {
-                merged.permissions.commandSafetyMode = 'smart';
-            } else if (oldVal === false) {
-                merged.permissions.commandSafetyMode = 'none';
+            if (!('commandSafetyMode' in stored.permissions)) {
+                const oldVal = (stored.permissions as any).runCommandsConfirmation;
+                if (oldVal === true) {
+                    merged.permissions.commandSafetyMode = 'smart';
+                } else if (oldVal === false) {
+                    merged.permissions.commandSafetyMode = 'none';
+                }
             }
+            // Remove the deprecated field to prevent it from overriding settings again
+            delete (stored.permissions as any).runCommandsConfirmation;
+            delete (merged.permissions as any).runCommandsConfirmation;
         }
 
         if (!merged.models.providerSettings) {
