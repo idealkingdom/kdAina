@@ -217,4 +217,42 @@ suite('Smart Command Completion System Tests', () => {
         const output = 'The data passed through the pipeline';
         assert.strictEqual(inferExitCode(output), null);
     });
+
+    // ─── calculateDiffStats Unit Tests ───
+    suite('calculateDiffStats', () => {
+        const { calculateDiffStats } = require('../tools/file-tools');
+
+        test('calculates stats for pure additions', () => {
+            const original = '';
+            const modified = 'line1\nline2\nline3';
+            const stats = calculateDiffStats(original, modified);
+            assert.strictEqual(stats.additions, 3);
+            assert.strictEqual(stats.deletions, 0);
+        });
+
+        test('calculates stats for pure deletions', () => {
+            const original = 'line1\nline2\nline3';
+            const modified = '';
+            const stats = calculateDiffStats(original, modified);
+            assert.strictEqual(stats.additions, 0);
+            assert.strictEqual(stats.deletions, 3);
+        });
+
+        test('calculates stats for substitutions/modifications', () => {
+            const original = 'line1\nline2\nline3';
+            const modified = 'line1\nlineModified\nline3\nlineAdded';
+            const stats = calculateDiffStats(original, modified);
+            // LCS is ['line1', 'line3'] (length 2)
+            // original has 3 lines -> deletions = 3 - 2 = 1
+            // modified has 4 lines -> additions = 4 - 2 = 2
+            assert.strictEqual(stats.additions, 2);
+            assert.strictEqual(stats.deletions, 1);
+        });
+
+        test('calculates stats for empty strings', () => {
+            const stats = calculateDiffStats('', '');
+            assert.strictEqual(stats.additions, 0);
+            assert.strictEqual(stats.deletions, 0);
+        });
+    });
 });
