@@ -303,18 +303,20 @@ if (PERMISSIONS && toolbarPermsBtn && permsOptionsMenu) {
     function applyAlwaysProceedState(enabled) {
         tbReadPerm.value = enabled ? 'auto' : (PERMISSIONS.readFilesConfirmation ? 'ask' : 'auto');
         tbWritePerm.value = enabled ? 'auto' : (PERMISSIONS.writeFilesConfirmation ? 'ask' : 'auto');
-        tbCmdPerm.value = enabled ? 'auto' : ((PERMISSIONS.commandSafetyMode && PERMISSIONS.commandSafetyMode !== 'none') ? 'ask' : 'auto');
+        if (tbCmdPerm) {
+            tbCmdPerm.value = enabled ? 'auto' : ((PERMISSIONS.commandSafetyMode && PERMISSIONS.commandSafetyMode !== 'none') ? 'ask' : 'auto');
+            tbCmdPerm.disabled = enabled;
+        }
         tbReadPerm.disabled = enabled;
         tbWritePerm.disabled = enabled;
-        tbCmdPerm.disabled = enabled;
         if (enabled) {
             tbReadPerm.style.opacity = '0.4';
             tbWritePerm.style.opacity = '0.4';
-            tbCmdPerm.style.opacity = '0.4';
+            if (tbCmdPerm) tbCmdPerm.style.opacity = '0.4';
         } else {
             tbReadPerm.style.opacity = '1';
             tbWritePerm.style.opacity = '1';
-            tbCmdPerm.style.opacity = '1';
+            if (tbCmdPerm) tbCmdPerm.style.opacity = '1';
         }
     }
     applyAlwaysProceedState(isAlwaysProceed);
@@ -345,11 +347,6 @@ if (PERMISSIONS && toolbarPermsBtn && permsOptionsMenu) {
     tbReadPerm.addEventListener('change', (e) => {
         const isAuto = e.target.value === 'auto';
         sendMessage('updateNestedSetting', { category: 'permissions', key: 'readFilesConfirmation', value: !isAuto });
-    });
-
-    tbCmdPerm.addEventListener('change', (e) => {
-        const isAuto = e.target.value === 'auto';
-        sendMessage('updateNestedSetting', { category: 'permissions', key: 'commandSafetyMode', value: isAuto ? 'none' : 'smart' });
     });
 
     toolbarPermsBtn.addEventListener('click', (e) => {
