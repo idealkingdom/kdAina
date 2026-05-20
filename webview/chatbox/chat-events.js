@@ -1,3 +1,6 @@
+/**
+ * Webview message listeners, history loaders, and window stream events handler.
+ */
 // --- EVENT LISTENERS ---
 window.addEventListener('message', event => {
     const message = event.data;
