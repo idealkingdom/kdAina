@@ -6,6 +6,26 @@ function stripAnsi(str) {
     return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
 }
 
+function getFileExtensionBadgeColor(ext) {
+    const colors = {
+        'js': '#f1e05a',
+        'ts': '#3178c6',
+        'tsx': '#3178c6',
+        'jsx': '#f1e05a',
+        'css': '#c752c7',
+        'html': '#e34c26',
+        'json': '#00bcd4',
+        'py': '#3572A5',
+        'md': '#083fa1',
+        'sh': '#89e051',
+        'go': '#00add8',
+        'yml': '#cb171e',
+        'yaml': '#cb171e',
+        'toml': '#9c4221'
+    };
+    return colors[ext.toLowerCase()] || '#888888';
+}
+
 function clearWaitingIndicator() {
     if (_waitingIndicatorTimer) {
         clearTimeout(_waitingIndicatorTimer);
@@ -90,15 +110,9 @@ function renderAgentStep(step) {
 
         if (isStatusMessage) {
             // Status messages render as simple inline cards (existing behavior)
-            const activeGroup = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
-            if (activeGroup) {
-                const stepsContainer = activeGroup.querySelector('.agent-steps-container');
-                if (stepsContainer && stepsContainer.children.length === 0) {
-                    if (activeGroup.dataset.timer) {
-                        clearInterval(parseInt(activeGroup.dataset.timer));
-                    }
-                    activeGroup.remove();
-                }
+            const activeContainer = chatbox.querySelector('div.agent-steps-container:not([data-finalized="true"])');
+            if (activeContainer && activeContainer.children.length === 0) {
+                activeContainer.remove();
             }
 
             const thinkingEl = document.createElement('div');
@@ -248,6 +262,15 @@ function renderAgentStep(step) {
     if (!stepEl.parentNode) {
         stepEl.className = 'agent-step-card';
     }
+    if (step.toolName) {
+        stepEl.dataset.toolName = step.toolName;
+    }
+    if (step.args) {
+        const pathArg = step.args.filePath || step.args.directory || step.args.TargetFile || step.args.AbsolutePath || step.args.SearchPath || step.args.DirectoryPath;
+        if (typeof pathArg === 'string') {
+            stepEl.dataset.filePath = pathArg;
+        }
+    }
 
     if (step.type === 'tool_call') {
         const icon = AGENT_ICONS[step.toolName] || '◆';
@@ -283,10 +306,10 @@ function renderAgentStep(step) {
             } else if (step.toolName === 'run_command' && step.args.command) {
                 argsPreview = `<code style="background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">$ ${step.args.command}</code>`;
             } else if (step.toolName === 'read_artifact' && step.args.name) {
-                argsPreview = `<span style="opacity: 0.8;">${step.args.scope || 'session'}:</span> <strong style="color: var(--vscode-textLink-foreground); cursor: pointer;" onclick="vscode.postMessage({command: 'openArtifact', data: {name: '${step.args.name}'}})">${step.args.name}</strong>`;
+                argsPreview = `<span style="opacity: 0.8;">${step.args.scope || 'session'}:</span> <strong style="color: var(--vscode-textLink-foreground); cursor: pointer;" onclick="vscode.postMessage({command: 'openArtifact', data: {name: '${step.args.name}', chatId: chatLog.dataset.chatId}})">${step.args.name}</strong>`;
             } else if (step.toolName === 'plan_task' || step.toolName === 'update_task_progress' || step.toolName === 'verify_completion') {
                 const previewStr = JSON.stringify(step.args).replace(/["'{}[\]]/g, '').substring(0, 80) + '...';
-                argsPreview = `<span style="opacity: 0.8;">${previewStr}</span> <strong style="color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: underline; margin-left: 8px;" onclick="vscode.postMessage({command: 'openArtifact', data: {name: 'task.md'}})">View Progress</strong>`;
+                argsPreview = `<span style="opacity: 0.8;">${previewStr}</span> <strong style="color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: underline; margin-left: 8px;" onclick="vscode.postMessage({command: 'openArtifact', data: {name: 'task.md', chatId: chatLog.dataset.chatId}})">View Progress</strong>`;
             }
         }
 
@@ -371,6 +394,71 @@ function renderAgentStep(step) {
 
             // The user requested to keep the present tense verb (e.g., "Running Command") 
             // permanently, so we no longer flip it to past tense here.
+
+            if (targetCard && step.result) {
+                targetCard.dataset.result = JSON.stringify(step.result);
+                targetCard.dataset.toolName = step.toolName;
+            }
+
+            // Custom layout for chunk_replace / create_file diff preview
+            if (targetCard && (step.toolName === 'chunk_replace' || step.toolName === 'create_file') && step.result && step.result.success) {
+                const filePath = step.result.file || (step.args && step.args.filePath) || 'file';
+                const absPath = step.result.absolutePath || (step.args && step.args.filePath) || '';
+                const additions = typeof step.result.additions === 'number' ? step.result.additions : 0;
+                const deletions = typeof step.result.deletions === 'number' ? step.result.deletions : 0;
+
+                const filename = filePath.split(/[\\/]/).pop();
+                const ext = filename.split('.').pop() || '';
+                const badgeColor = getFileExtensionBadgeColor(ext);
+                const actionLabel = step.toolName === 'create_file' ? 'Created' : 'Edited';
+
+                const header = targetCard.querySelector('.step-header');
+                if (header) {
+                    header.className = 'step-header file-edit-step-header';
+                    header.innerHTML = `
+                        <div class="file-edit-row" onclick="vscode.postMessage({command: 'openFile', data: {path: '${absPath.replace(/\\/g, '\\\\')}'}})">
+                            <span class="file-edit-action">${actionLabel}</span>
+                            <span class="file-edit-badge" style="color: ${badgeColor};">${ext}</span>
+                            <span class="file-edit-name">${filename}</span>
+                            <span class="file-edit-diff">
+                                <span class="diff-add">+${additions}</span>
+                                <span class="diff-del">-${deletions}</span>
+                            </span>
+                        </div>
+                        <span class="step-status done"></span>
+                    `;
+                }
+            }
+
+            // Custom layout for read_file_skeleton / read_line_range
+            if (targetCard && (step.toolName === 'read_file_skeleton' || step.toolName === 'read_line_range') && step.result && !step.result.error) {
+                const filePath = step.result.file || (step.args && (step.args.filePath || step.args.file)) || 'file';
+                const absPath = step.result.absolutePath || (step.args && (step.args.filePath || step.args.file)) || '';
+
+                const filename = filePath.split(/[\\/]/).pop();
+                const ext = filename.split('.').pop() || '';
+                const badgeColor = getFileExtensionBadgeColor(ext);
+                const actionLabel = 'Read';
+
+                let rangeLabel = '';
+                if (step.toolName === 'read_line_range' && step.result.range) {
+                    rangeLabel = `<span class="file-read-range" style="opacity: 0.5; font-size: 11px; margin-left: 6px;">L${step.result.range}</span>`;
+                }
+
+                const header = targetCard.querySelector('.step-header');
+                if (header) {
+                    header.className = 'step-header file-edit-step-header';
+                    header.innerHTML = `
+                        <div class="file-edit-row" onclick="vscode.postMessage({command: 'openFile', data: {path: '${absPath.replace(/\\/g, '\\\\')}'}})">
+                            <span class="file-edit-action">${actionLabel}</span>
+                            <span class="file-edit-badge" style="color: ${badgeColor};">${ext}</span>
+                            <span class="file-edit-name">${filename}</span>
+                            ${rangeLabel}
+                        </div>
+                        <span class="step-status done"></span>
+                    `;
+                }
+            }
 
             // Special styling for manage_artifact result
             if (targetCard && step.toolName === 'manage_artifact' && step.result && step.result._artifactManaged) {
@@ -510,7 +598,8 @@ function renderAgentStep(step) {
                 lastChild.dataset.count = String(count);
                 const labelEl = lastChild.querySelector('.group-label');
                 if (labelEl) {
-                    labelEl.textContent = `${categoryLabels[cat]} ${count} items`;
+                    const suffix = cat === 'edit' ? (count === 1 ? 'file' : 'files') : (count === 1 ? 'item' : 'items');
+                    labelEl.textContent = `${categoryLabels[cat]} ${count} ${suffix}`;
                 }
                 const groupContent = lastChild.querySelector('.group-content');
                 if (groupContent) {
@@ -525,10 +614,11 @@ function renderAgentStep(step) {
                 groupEl.dataset.category = cat;
                 groupEl.dataset.count = "1";
                 groupEl.open = true;
+                const suffix = cat === 'edit' ? 'file' : 'item';
                 groupEl.innerHTML = `
                     <summary class="step-header">
                         <span class="step-icon">◂</span>
-                        <span class="group-label step-tool-name">${categoryLabels[cat]} 1 item</span>
+                        <span class="group-label step-tool-name">${categoryLabels[cat]} 1 ${suffix}</span>
                         <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
                     </summary>
                     <div class="group-content step-content" style="padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, 0.1);"></div>
@@ -543,6 +633,139 @@ function renderAgentStep(step) {
     }
 
     scrollToBottom();
+}
+
+function appendFilesSummary(turnEl) {
+    if (!turnEl) return;
+
+    // Prevent duplicate summaries
+    if (turnEl.querySelector('.files-summary-section')) return;
+
+    const messageContent = turnEl.querySelector('.system-message .message-content');
+    if (!messageContent) return;
+
+    // Find all step cards in this turn
+    const stepCards = turnEl.querySelectorAll('.agent-step-card');
+
+    const modifiedFiles = new Map(); // path -> { file, absolutePath, additions, deletions }
+    const readFiles = new Map(); // path -> { file, absolutePath }
+
+    stepCards.forEach(card => {
+        const toolName = card.dataset.toolName;
+        const resultStr = card.dataset.result;
+        if (!resultStr) return;
+
+        try {
+            const result = JSON.parse(resultStr);
+            if (result.error) return;
+
+            const filePath = result.file || card.dataset.filePath || '';
+            const absPath = result.absolutePath || card.dataset.filePath || filePath || '';
+            if (!filePath) return;
+
+            if (toolName === 'chunk_replace' || toolName === 'create_file') {
+                if (result.success) {
+                    const additions = typeof result.additions === 'number' ? result.additions : 0;
+                    const deletions = typeof result.deletions === 'number' ? result.deletions : 0;
+
+                    if (modifiedFiles.has(filePath)) {
+                        const existing = modifiedFiles.get(filePath);
+                        existing.additions += additions;
+                        existing.deletions += deletions;
+                    } else {
+                        modifiedFiles.set(filePath, {
+                            file: filePath,
+                            absolutePath: absPath,
+                            additions: additions,
+                            deletions: deletions
+                        });
+                    }
+                }
+            } else if (toolName === 'read_file_skeleton' || toolName === 'read_line_range') {
+                if (!readFiles.has(filePath)) {
+                    readFiles.set(filePath, {
+                        file: filePath,
+                        absolutePath: absPath
+                    });
+                }
+            }
+        } catch (e) {
+            console.error('Failed to parse tool result for files summary', e);
+        }
+    });
+
+    // Remove read files that are also modified (modification takes priority)
+    modifiedFiles.forEach((info, filePath) => {
+        readFiles.delete(filePath);
+    });
+
+    if (modifiedFiles.size === 0 && readFiles.size === 0) return;
+
+    // Build the files summary container
+    const summarySection = document.createElement('div');
+    summarySection.className = 'files-summary-section';
+
+    let headerLabel = 'Files Processed';
+    let count = 0;
+    let listHTML = '';
+
+    if (modifiedFiles.size > 0) {
+        headerLabel = 'Files Modified';
+        count = modifiedFiles.size;
+
+        modifiedFiles.forEach((info) => {
+            const filename = info.file.split(/[\\/]/).pop();
+            const ext = filename.split('.').pop() || '';
+            const badgeColor = getFileExtensionBadgeColor(ext);
+            const pathEscaped = info.absolutePath.replace(/\\/g, '\\\\');
+
+            listHTML += `
+                <div class="file-summary-pill">
+                    <span class="file-summary-ext" style="color: ${badgeColor};">${ext}</span>
+                    <span class="file-summary-name" onclick="vscode.postMessage({command: 'openFile', data: {path: '${pathEscaped}'}})">${filename}</span>
+                    <span class="file-summary-diff">
+                        <span class="diff-add">+${info.additions}</span>
+                        <span class="diff-del">-${info.deletions}</span>
+                    </span>
+                </div>
+            `;
+        });
+    } else if (readFiles.size > 0) {
+        headerLabel = 'Files Processed';
+        count = readFiles.size;
+
+        readFiles.forEach((info) => {
+            const filename = info.file.split(/[\\/]/).pop();
+            const ext = filename.split('.').pop() || '';
+            const badgeColor = getFileExtensionBadgeColor(ext);
+            const pathEscaped = info.absolutePath.replace(/\\/g, '\\\\');
+
+            listHTML += `
+                <div class="file-summary-pill">
+                    <span class="file-summary-ext" style="color: ${badgeColor};">${ext}</span>
+                    <span class="file-summary-name" onclick="vscode.postMessage({command: 'openFile', data: {path: '${pathEscaped}'}})">${filename}</span>
+                </div>
+            `;
+        });
+    }
+
+    summarySection.innerHTML = `
+        <div class="files-summary-header">
+            <span>${headerLabel}</span>
+            <span class="files-summary-count">${count}</span>
+        </div>
+        <div class="files-summary-container">
+            ${listHTML}
+        </div>
+    `;
+
+    // Append to messageContent, before the footer
+    const footer = messageContent.querySelector('.message-footer');
+    if (footer) {
+        messageContent.insertBefore(summarySection, footer);
+    } else {
+        messageContent.appendChild(summarySection);
+    }
 }
 
 /** ─── STAGING BAR LOGIC ─── **/
