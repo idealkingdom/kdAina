@@ -54,9 +54,6 @@
 }
 
 /* Specific Pill Highlights */
-#pill-context:hover {
-  border-color: rgba(0, 242, 254, 0.4);
-}
 
 #pill-reviews:hover {
   border-color: rgba(255, 107, 107, 0.4);
