@@ -404,8 +404,17 @@ export class WorkspaceIndexService {
                 .map((l, i) => `L${cursorStart + i + 1}: ${l}`)
                 .join('\n');
 
+            let errorText = '';
+            const diagnostics = vscode.languages.getDiagnostics(uri);
+            const activeErrors = diagnostics.filter(d => d.severity === vscode.DiagnosticSeverity.Error);
+            if (activeErrors.length > 0) {
+                errorText = `\n--- active compile errors ---\n` + activeErrors
+                    .map(d => `L${d.range.start.line + 1}: ${d.message}`)
+                    .join('\n') + `\n`;
+            }
+
             const skeletonStr = skeletonLines.length > 0 ? skeletonLines.join('\n') + '\n' : '';
-            sections.push(`[ACTIVE] ${relPath} (${lines.length} lines, cursor at L${cursorLine + 1})\n${skeletonStr}--- cursor context ---\n${cursorContext}`);
+            sections.push(`[ACTIVE] ${relPath} (${lines.length} lines, cursor at L${cursorLine + 1})\n${skeletonStr}${errorText}--- cursor context ---\n${cursorContext}`);
         }
 
         // ── 2. Lightweight manifest for other visible editors ───────────
