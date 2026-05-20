@@ -870,16 +870,16 @@ function appendFollowUpSuggestions(turnEl, responseText) {
     suggestionsSection.querySelectorAll('.suggestion-chip').forEach(chip => {
         chip.addEventListener('click', event => {
             const text = chip.querySelector('span').textContent.trim();
-            const inputField = document.getElementById('chatMessage');
-            if (!inputField) return;
+            if (!chatMessage) return;
 
-            inputField.innerText = text;
-            inputField.focus();
+            chatMessage.innerText = text;
+            chatMessage.dispatchEvent(new Event('input', { bubbles: true }));
+            chatMessage.focus();
 
             // Set caret to end of text
             const range = document.createRange();
             const sel = window.getSelection();
-            range.selectNodeContents(inputField);
+            range.selectNodeContents(chatMessage);
             range.collapse(false);
             sel.removeAllRanges();
             sel.addRange(range);
@@ -892,7 +892,7 @@ function appendFollowUpSuggestions(turnEl, responseText) {
                 }
             } else {
                 // Just scroll to it
-                inputField.scrollIntoView({ block: 'nearest' });
+                chatMessage.scrollIntoView({ block: 'nearest' });
             }
         });
     });
