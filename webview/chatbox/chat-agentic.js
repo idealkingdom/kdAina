@@ -635,6 +635,9 @@ function renderAgentStep(step) {
     scrollToBottom();
 }
 
+/**
+ * Gathers all files processed/modified during a chat turn and appends interactive pills.
+ */
 function appendFilesSummary(turnEl) {
     if (!turnEl) return;
 
