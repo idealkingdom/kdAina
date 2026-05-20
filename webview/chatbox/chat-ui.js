@@ -695,8 +695,15 @@ if (dismissQuestionBtn) {
 let isGenerating = false;
 
 function toggleSendButton(mode = "off") {
-    if (mode === "disabled") {
+    // Check if there is any content in the input or attachments
+    const messageText = chatMessage ? chatMessage.innerText.trim() : "";
+    const imagePills = chatMessage ? chatMessage.querySelectorAll('.inline-attachment-pill[data-image="true"]') : [];
+    const filePills = chatMessage ? chatMessage.querySelectorAll('.inline-attachment-pill[data-file="true"]') : [];
+    const hasContent = messageText || imagePills.length > 0 || filePills.length > 0 || (typeof attachedFiles !== 'undefined' && attachedFiles && attachedFiles.length > 0);
+
+    if (mode === "disabled" || (mode === "off" && !hasContent)) {
         sendButton.classList.add("disabled");
+        sendButton.disabled = true;
         sendButton.classList.remove("generating");
         sendButton.title = "Send";
         sendButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
@@ -704,6 +711,7 @@ function toggleSendButton(mode = "off") {
 </svg>`;
     } else if (mode === "generating") {
         sendButton.classList.remove("disabled");
+        sendButton.disabled = false;
         sendButton.classList.add("generating");
         sendButton.title = "Stop Request";
         sendButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
@@ -711,6 +719,7 @@ function toggleSendButton(mode = "off") {
 </svg>`;
     } else {
         sendButton.classList.remove("disabled");
+        sendButton.disabled = false;
         sendButton.classList.remove("generating");
         sendButton.title = "Send";
         sendButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
@@ -741,4 +750,7 @@ function getCurrentDate() {
     };
     return now.toLocaleString('en-US', options);
 }
+
+// Initialize send button state
+toggleSendButton("off");
 

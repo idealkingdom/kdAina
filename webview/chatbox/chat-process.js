@@ -422,11 +422,16 @@ window.addEventListener('DOMContentLoaded', () => {
 
         if (event.key === "Enter" && !event.shiftKey) {
             event.preventDefault();
-            sendButton.click();
+            if (!sendButton.classList.contains('disabled')) {
+                sendButton.click();
+            }
         }
     });
 
     input.addEventListener("input", (event) => {
+        if (typeof toggleSendButton === 'function') {
+            toggleSendButton("off");
+        }
         const text = input.innerText;
         const cursorPosition = getCaretPosition(input);
         const textBeforeCursor = text.substring(0, cursorPosition);
