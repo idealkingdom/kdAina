@@ -572,22 +572,7 @@ BROWSER WORKFLOW: open → snapshot → action → snapshot → verify → close
 ALWAYS snapshot before interacting. Use refs (@eN) from the LATEST snapshot only.
 For forms: use fill (clears input first), not type (appends). Re-snapshot after actions.` : '';
 
-        let agenticSystemPrompt: string;
-
-        if (isSimple) {
-            // Lean system prompt for simple requests — saves ~1,000 tokens
-            agenticSystemPrompt = `${systemPrompt}
-
-${systemInfo}
-Workspace root: ${workspaceRoot}
-
-You are an autonomous agent with tools. For this simple request, respond directly or use tools as needed.
-- Prefer tool calls over text. Use run_command for shell operations.
-- Batch parallel tool calls when possible.
-- If you need workspace context, use list_workspace or read_file_skeleton.${suggestionsInstruction}`;
-        } else {
-            // Full system prompt with all context for complex requests
-            agenticSystemPrompt = `${systemPrompt}
+        const agenticSystemPrompt = `${systemPrompt}
 
 ${systemInfo}
 ${artifactsContext}
@@ -645,7 +630,6 @@ CONTEXT PRIORITY:
 - Earlier messages in this conversation are BACKGROUND CONTEXT ONLY — they show what was discussed before.
 - Do NOT re-execute, re-explain, or revisit completed tasks from earlier messages unless the user explicitly asks.
 - Treat prior assistant responses as already-delivered work. Your job is the NEW request.`;
-        }
 
 
         // Resolve and inject rules (global + agent-linked)
