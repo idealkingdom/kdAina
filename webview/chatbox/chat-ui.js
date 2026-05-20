@@ -1,3 +1,6 @@
+/**
+ * Main Webview Chatbox UI setup, handlers, and initialization controls.
+ */
 let attachedImages = [];
 let attachedFiles = [];
 
