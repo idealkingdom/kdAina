@@ -672,9 +672,15 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
 
         case 'openFile':
             {
-                const path = message.data.path;
-                if (!path) { return; }
-                const uri = vscode.Uri.file(path);
+                let filePath = message.data.path;
+                if (!filePath) { return; }
+                if (!path.isAbsolute(filePath)) {
+                    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                    if (workspaceRoot) {
+                        filePath = path.join(workspaceRoot, filePath);
+                    }
+                }
+                const uri = vscode.Uri.file(filePath);
                 vscode.commands.executeCommand('vscode.open', uri);
                 break;
             }
@@ -683,7 +689,7 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
             {
                 const artifactName = message.data.name;
                 if (!artifactName) { return; }
-                const chatId = ChatViewProvider.getCurrentSessionId() || message.data.chatId;
+                const chatId = message.data.chatId || ChatViewProvider.getCurrentSessionId();
                 const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
                 if (workspaceRoot && chatId) {
                     const artifactPath = path.join(workspaceRoot, '.kdaina', 'artifacts', 'sessions', chatId, artifactName);
