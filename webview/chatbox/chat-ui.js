@@ -74,7 +74,16 @@ function updateActiveAgentUI(agentId, agentsList) {
     }
 
     if (modeDropdown) {
-        modeDropdown.title = "Click to Cycle Agent Mode (Chat → Architect → Action)";
+        modeDropdown.title = "Click to Cycle Agent Mode";
+    }
+
+    const permsBtn = document.getElementById('toolbar-perms-btn');
+    if (permsBtn) {
+        if (activeAgentId === 'default') {
+            permsBtn.style.display = 'none';
+        } else {
+            permsBtn.style.display = '';
+        }
     }
 
     // Update selected class in dropdown
