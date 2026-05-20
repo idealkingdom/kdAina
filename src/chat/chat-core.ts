@@ -521,20 +521,33 @@ export class ChatCoreService {
 When handling complex multi-step requests, call update_task_progress after each major step to report your progress.
 This shows a live checklist in the chat so the user can track what's done and what's remaining.`;
 
-        // #51: Include workspace file tree in context (compact mode to save tokens)
-        await this.workspaceIndex.refresh();
-        const fileTree = this.workspaceIndex.getCompactTreeString();
-        // Cap the tree to avoid blowing up the context window
-        const maxTreeChars = 4000;
-        const truncatedTree = fileTree.length > maxTreeChars
-            ? fileTree.substring(0, maxTreeChars) + '\n... (truncated, use list_workspace for full tree)'
-            : fileTree;
+        // Optimize: Check if request is simple (greetings, general chat, simple command runs)
+        // to skip injecting file tree and active editor context.
+        const isSimple = typeof currentMessage === 'string' && currentMessage.length < 120 && 
+            !/(write|create|edit|change|fix|implement|add|refactor|delete|remove|search|find|replace|code|file|folder|directory|path|class|function|method|struct|enum|error|bug|compile|lint|preview|test)/i.test(currentMessage);
 
-        // #55: Auto-inject active editor context so the agent doesn't waste tool calls
-        const activeEditorCtx = await this.workspaceIndex.getActiveEditorContext();
-        const editorSection = activeEditorCtx
-            ? `\n--- ACTIVE EDITOR FILES ---\nThese files are currently open in the user's editor. You already have their skeletons and cursor positions. Do NOT re-read them with read_file_skeleton unless you need fresh data after an edit.\n${activeEditorCtx}\n`
-            : '';
+        let truncatedTree = '';
+        let editorSection = '';
+        if (isSimple) {
+            outputChannel.appendLine(`[Agentic] Detected simple request. Omit fileTree and editorSection from initial prompt to save tokens.`);
+            truncatedTree = '(Omitted for simple request to save tokens. Use list_workspace if needed)';
+            editorSection = '';
+        } else {
+            // #51: Include workspace file tree in context (compact mode to save tokens)
+            await this.workspaceIndex.refresh();
+            const fileTree = this.workspaceIndex.getCompactTreeString();
+            // Cap the tree to avoid blowing up the context window
+            const maxTreeChars = 4000;
+            truncatedTree = fileTree.length > maxTreeChars
+                ? fileTree.substring(0, maxTreeChars) + '\n... (truncated, use list_workspace for full tree)'
+                : fileTree;
+
+            // #55: Auto-inject active editor context so the agent doesn't waste tool calls
+            const activeEditorCtx = await this.workspaceIndex.getActiveEditorContext();
+            editorSection = activeEditorCtx
+                ? `\n--- ACTIVE EDITOR FILES ---\nThese files are currently open in the user's editor. You already have their skeletons and cursor positions. Do NOT re-read them with read_file_skeleton unless you need fresh data after an edit.\n${activeEditorCtx}\n`
+                : '';
+        }
 
         const suggestionsEnabled = settings.general?.enableSuggestions !== false;
         const suggestionsInstruction = suggestionsEnabled
@@ -673,6 +686,11 @@ CONTEXT PRIORITY:
         // Shared mutable step counter — tool-registry reads this to inject budget info into tool results
         const stepBudget = { current: 0, max: 0 }; // max is set after we compute maxSteps
 
+        // Optimize: Enable browser tools only if query or history mentions web/browser context, and request is not simple
+        const browserKeywords = /browser|page|web|ui|url|http|localhost|visual|screenshot|click|scrap|render/i;
+        const needsBrowser = !isSimple && (browserKeywords.test(currentMessage) ||
+            contextMessages.some(m => typeof m.content === 'string' && browserKeywords.test(m.content)));
+
         // Apply alwaysProceed override — if enabled, skip all confirmation dialogs
         const alwaysProceed = settings.permissions?.alwaysProceed === true;
         const tools = createToolRegistry(this.workspaceIndex, {
@@ -683,6 +701,7 @@ CONTEXT PRIORITY:
             readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
             writeFilesConfirmation: alwaysProceed ? false : (settings.permissions?.writeFilesConfirmation ?? true),
             commandSafetyMode: alwaysProceed ? 'none' : (settings.permissions?.commandSafetyMode ?? 'smart'),
+            enableBrowserTools: needsBrowser,
             onApprovalRequest: async (toolCallId, toolName, args, opts) => {
                 if (abortSignal?.aborted) {
                     return;

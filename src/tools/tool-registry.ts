@@ -20,6 +20,7 @@ export interface ToolRegistryOptions {
     abortSignal?: AbortSignal;
     /** Shared mutable counter — chat-core increments this, tool-registry reads it */
     stepBudget?: { current: number; max: number };
+    enableBrowserTools?: boolean;
 }
 
 /**
@@ -36,16 +37,18 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
     const cognitiveTools = createCognitiveTools(options?.tier || 'mid', options?.chatId);
     const artifactTools = createArtifactTools(options?.chatId || 'unknown_chat');
 
-    const browserTools = createBrowserTools();
-
-    const allTools = {
+    const allTools: any = {
         ...fileTools,
         ...sysTools,
         ...webTools,
         ...cognitiveTools,
-        ...artifactTools,
-        ...browserTools
+        ...artifactTools
     };
+
+    if (options?.enableBrowserTools !== false) {
+        const browserTools = createBrowserTools();
+        Object.assign(allTools, browserTools);
+    }
 
     const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url', 'web_search', 'get_workspace_problems', 'read_artifact', 'list_background_processes', 'get_background_output'];
     const writeTools = ['chunk_replace', 'create_file', 'manage_artifact'];
