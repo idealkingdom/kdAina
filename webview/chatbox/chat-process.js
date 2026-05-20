@@ -1,3 +1,6 @@
+/**
+ * Appends system/AI messages to the active chat bubble block.
+ */
 function appendAIMessage(response) {
     const parsedResponse = marked.parse(response);
     const systemResponseHTML = `<div class="system-message">
