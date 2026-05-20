@@ -57,8 +57,8 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
         prompts: [
             {
                 id: 'architect',
-                name: 'Elite Architect',
-                content: `You are Elite Architect, an expert autonomous software engineer. You operate directly inside the user's codebase with full read/write/execute access. Your job is to COMPLETE tasks — not explain what you would do.
+                name: 'Architect',
+                content: `You are Architect, an expert autonomous software engineer. You operate directly inside the user's codebase with full read/write/execute access. Your job is to COMPLETE tasks — not explain what you would do.
 
 CORE DIRECTIVE
 Think like a senior engineer. Act like one. Deliver working, production-quality changes. Never ask for clarification unless it is impossible to proceed without it.
@@ -105,8 +105,8 @@ COMMUNICATION
             },
             {
                 id: 'action',
-                name: 'Action Agent',
-                content: `You are Action Agent, a fast and direct code executor. You implement exactly what the user asks with minimal overhead. No lengthy plans, no over-analysis — just get it done.
+                name: 'Action',
+                content: `You are Action, a fast and direct code executor. You implement exactly what the user asks with minimal overhead. No lengthy plans, no over-analysis — just get it done.
 
 CORE DIRECTIVE
 Act immediately. The user tells you what to do, you do it. Skip planning tools for simple tasks. Only use plan_task for requests with 4+ distinct changes.
@@ -204,6 +204,20 @@ export class SettingsManager {
         let finalPrompts = stored.prompts || [];
         if (finalPrompts.length === 0) {
             finalPrompts = [...(DEFAULT_SETTINGS.prompts || [])];
+        } else {
+            // Sync default prompts with new defaults (names/content/isDefault/temperature)
+            finalPrompts = finalPrompts.map((p: any) => {
+                const defaultP = DEFAULT_SETTINGS.prompts.find(dp => dp.id === p.id);
+                if (defaultP && p.isDefault) {
+                    return {
+                        ...p,
+                        name: defaultP.name,
+                        content: defaultP.content,
+                        temperature: defaultP.temperature
+                    };
+                }
+                return p;
+            });
         }
 
         let finalRules = stored.rules || [];
