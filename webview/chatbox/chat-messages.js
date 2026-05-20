@@ -26,6 +26,9 @@ function showLoadingIndicator() {
 
 // --- MESSAGE HANDLING ---
 
+/**
+ * Formats and inserts user chat bubble elements into log view.
+ */
 function appendUserMessage(message, images = [], files = [], isHistory = false) {
     let finalHTML = processMessageContent(message);
 
