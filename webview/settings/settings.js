@@ -141,6 +141,7 @@ const commandSafetyMode = document.getElementById('commandSafetyMode');
 const allowExternalMediaToggle = document.getElementById('allowExternalMedia');
 const contextModeToggle = document.getElementById('contextModeToggle');
 const enableTerminalSandboxToggle = document.getElementById('enableTerminalSandbox');
+const enableSuggestionsToggle = document.getElementById('enableSuggestions');
 let isKeyVisible = false;
 
 // External media toggle handler
@@ -183,6 +184,20 @@ if (enableTerminalSandboxToggle) {
         });
     });
 }
+
+if (enableSuggestionsToggle) {
+    enableSuggestionsToggle.addEventListener('change', (e) => {
+        if (!currentSettings.general) currentSettings.general = {};
+        currentSettings.general.enableSuggestions = e.target.checked;
+        persistSettings();
+        
+        vscode.postMessage({
+            command: 'saveSetting',
+            data: { category: 'general', key: 'enableSuggestions', value: e.target.checked }
+        });
+    });
+}
+
 
 const disableSslToggle = document.getElementById('disableSslVerification');
 if (disableSslToggle) {
@@ -838,6 +853,10 @@ function populateForm() {
         });
     }
 
+    if (enableSuggestionsToggle) {
+        enableSuggestionsToggle.checked = general.enableSuggestions !== false;
+    }
+
 
     // UI
     if (ui) {
@@ -914,6 +933,8 @@ function collectSettings() {
     }
     if (contextModeToggle) {
         currentSettings.general.contextMode = contextModeToggle.checked ? 'compact' : 'full';
+    }    if (enableSuggestionsToggle) {
+        currentSettings.general.enableSuggestions = enableSuggestionsToggle.checked;
     }
 
     if (!currentSettings.permissions) {

@@ -31,7 +31,8 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
             systemPrompt: "You are an expert AI assistant.",
             temperature: 0.7,
             theme: 'dark',
-            contextMode: 'compact'
+            contextMode: 'compact',
+            enableSuggestions: true
         },
         models: {
             textModel: defaultTextModel,

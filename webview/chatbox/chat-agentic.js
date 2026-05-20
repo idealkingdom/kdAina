@@ -808,6 +808,12 @@ function appendFollowUpSuggestions(turnEl, responseText) {
         messageTextEl.innerHTML = messageTextEl.innerHTML.replace(/&lt;suggestions&gt;[\s\S]*?&lt;\/suggestions&gt;/gi, '');
     }
 
+    const generalSettings = (window.VS_CONSTANTS && window.VS_CONSTANTS.GENERAL) || window.GENERAL || (typeof GENERAL !== 'undefined' ? GENERAL : undefined);
+    const isSuggestionsEnabled = !generalSettings || generalSettings.enableSuggestions !== false;
+    if (!isSuggestionsEnabled) {
+        return;
+    }
+
     // 2. Generate fallback recommendations if none were provided by the model
     if (suggestions.length === 0) {
         // Gather context from tools run

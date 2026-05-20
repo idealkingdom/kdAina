@@ -150,7 +150,7 @@ if (messageBox) observer.observe(messageBox, { childList: true, subtree: true })
 updateContextCountPill();
 
 // --- TOOLBAR DROPDOWNS INITIALIZATION ---
-let { MODELS, PERMISSIONS, UI } = window.VS_CONSTANTS || {};
+let { MODELS, PERMISSIONS, UI, GENERAL } = window.VS_CONSTANTS || {};
 
 let uiStyleNode = null;
 

@@ -358,6 +358,13 @@ window.addEventListener('message', event => {
             applyUISettings(message.ui);
             break;
 
+        case 'generalSettingsUpdate':
+            if (message.general) {
+                GENERAL = message.general;
+                if (window.VS_CONSTANTS) window.VS_CONSTANTS.GENERAL = message.general;
+            }
+            break;
+
         case 'improvedPrompt':
             {
                 const generateBtn = document.getElementById('generateButton');
@@ -510,6 +517,10 @@ window.addEventListener('message', event => {
                 if (s.ui) {
                     applyUISettings(s.ui);
                     applyExternalMediaSetting(s.ui.allowExternalMedia);
+                }
+                if (s.general) {
+                    GENERAL = s.general;
+                    if (window.VS_CONSTANTS) window.VS_CONSTANTS.GENERAL = s.general;
                 }
             }
             break;

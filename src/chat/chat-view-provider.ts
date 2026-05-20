@@ -91,6 +91,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         SettingsManager.onDidUpdateSettings((updated) => {
             this.postMessage({ command: 'uiSettingsUpdate', ui: updated.ui });
+            this.postMessage({ command: 'generalSettingsUpdate', general: updated.general });
             this.postMessage({ command: 'agentsUpdate', agents: updated.prompts || [] });
             this.postMessage({ 
                 command: 'modelsUpdate', 
@@ -229,7 +230,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             AVAILABLE_MODELS: getModelProviderOptions(),
             CUSTOM_MODELS: settings.customModels || [],
             PERMISSIONS: settings.permissions,
-            UI: settings.ui
+            UI: settings.ui,
+            GENERAL: settings.general
         });
 
         webview.html = html.replace(`"{{CONSTANTS}}"`, SHARED_CONSTANTS);

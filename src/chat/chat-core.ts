@@ -391,7 +391,10 @@ export class ChatCoreService {
         // #64: Default Chat uses ONLY the global system prompt — no extra system info
         // System info is only needed for agentic mode (tool execution context)
         const baseSystemPrompt = settings.general?.systemPrompt || "You are an expert AI assistant.";
-        const systemPrompt = `${baseSystemPrompt}\n\nAt the very end of your response, suggest exactly 3 short, context-specific follow-up questions or next steps for the user. Output them in this format: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>.`;
+        const suggestionsEnabled = settings.general?.enableSuggestions !== false;
+        const systemPrompt = suggestionsEnabled
+            ? `${baseSystemPrompt}\n\nAt the very end of your response, suggest exactly 3 short, context-specific follow-up questions or next steps for the user. Output them in this format: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>.`
+            : baseSystemPrompt;
         const steps = [{ content: systemPrompt }];
 
         let pipelineContext = currentMessage;
@@ -533,6 +536,11 @@ This shows a live checklist in the chat so the user can track what's done and wh
             ? `\n--- ACTIVE EDITOR FILES ---\nThese files are currently open in the user's editor. You already have their skeletons and cursor positions. Do NOT re-read them with read_file_skeleton unless you need fresh data after an edit.\n${activeEditorCtx}\n`
             : '';
 
+        const suggestionsEnabled = settings.general?.enableSuggestions !== false;
+        const suggestionsInstruction = suggestionsEnabled
+            ? `\n- At the very end of your final response (only after all tool calls are completed and you are presenting the final response to the user), suggest exactly 3 short, actionable follow-up questions or next steps. Format them exactly like this at the end: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>. Do not include suggestions during intermediate steps or plans.`
+            : '';
+
         let agenticSystemPrompt = `${systemPrompt}
 
 ${systemInfo}
@@ -584,8 +592,7 @@ CRITICAL RULES:
 - Always verify your changes compile and don't introduce workspace problems after editing.
 - Edits are applied DIRECTLY to the file. The user can review changes inline.
 - Use web_search proactively for external libraries or APIs. Don't guess — search first.
-- When multiple independent tool calls can be made, call them ALL AT ONCE in a single step.${todoInstruction}
-- At the very end of your final response (only after all tool calls are completed and you are presenting the final response to the user), suggest exactly 3 short, actionable follow-up questions or next steps. Format them exactly like this at the end: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>. Do not include suggestions during intermediate steps or plans.
+- When multiple independent tool calls can be made, call them ALL AT ONCE in a single step.${todoInstruction}${suggestionsInstruction}
 
 BROWSER TOOLS (for web testing & visual QA):
 - browser_open: Navigate to a URL in a real browser
