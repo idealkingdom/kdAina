@@ -112,52 +112,54 @@ function appendUserMessage(message, images = [], files = [], isHistory = false) 
 
 
 function getOrCreateAgentStepsGroup(isHistory) {
-    let detailsEl = chatbox.querySelector('details.agent-steps-group:not([data-finalized="true"])');
-    if (!detailsEl) {
-        detailsEl = document.createElement('details');
-        detailsEl.className = 'agent-steps-group';
-        detailsEl.open = !isHistory; // History groups start collapsed
-        detailsEl.dataset.startTime = Date.now();
-        if (isHistory) { detailsEl.dataset.history = 'true'; }
+    if (isHistory) {
+        // History: Return steps container inside details.agent-steps-group (already finalized/historical)
+        let detailsEl = chatbox.querySelector('details.agent-steps-group[data-history="true"]:not([data-finalized="true"])');
+        if (!detailsEl) {
+            detailsEl = document.createElement('details');
+            detailsEl.className = 'agent-steps-group';
+            detailsEl.open = false; // History groups start collapsed
+            detailsEl.dataset.startTime = Date.now();
+            detailsEl.dataset.history = 'true';
 
-        const summary = document.createElement('summary');
-        summary.className = 'agent-steps-summary';
-
-        if (isHistory) {
-            // History: show static text, no live timer
+            const summary = document.createElement('summary');
+            summary.className = 'agent-steps-summary';
             summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">Completed steps</span>`;
-        } else {
-            summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">Working...</span>`;
-        }
-        detailsEl.appendChild(summary);
+            detailsEl.appendChild(summary);
 
-        const stepsContainer = document.createElement('div');
-        stepsContainer.className = 'agent-steps-container';
-        detailsEl.appendChild(stepsContainer);
+            const stepsContainer = document.createElement('div');
+            stepsContainer.className = 'agent-steps-container';
+            stepsContainer.dataset.finalized = 'true';
+            detailsEl.appendChild(stepsContainer);
+
+            const activeTurn = getActiveTurn();
+            const loadingIndicator = activeTurn.querySelector('.loading-indicator');
+            if (loadingIndicator) {
+                activeTurn.insertBefore(detailsEl, loadingIndicator);
+            } else {
+                activeTurn.appendChild(detailsEl);
+            }
+            return stepsContainer;
+        }
+        return detailsEl.querySelector('.agent-steps-container');
+    }
+
+    // Live Execution: Return a flat div.agent-steps-container. No parent details/timer wrapper is shown yet.
+    let container = chatbox.querySelector('div.agent-steps-container:not([data-finalized="true"])');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'agent-steps-container';
+        container.dataset.startTime = String(Date.now());
 
         const activeTurn = getActiveTurn();
         const loadingIndicator = activeTurn.querySelector('.loading-indicator');
         if (loadingIndicator) {
-            activeTurn.insertBefore(detailsEl, loadingIndicator);
+            activeTurn.insertBefore(container, loadingIndicator);
         } else {
-            activeTurn.appendChild(detailsEl);
+            activeTurn.appendChild(container);
         }
-
-        if (!isHistory) {
-            // Only start the live timer for real-time requests
-            detailsEl.dataset.timer = setInterval(() => {
-                const ms = Date.now() - parseInt(detailsEl.dataset.startTime);
-                const secs = Math.floor(ms / 1000);
-                const summaryText = summary.querySelector('.summary-text');
-                if (summaryText) {
-                    summaryText.textContent = `Worked for ${secs}s`;
-                }
-            }, 1000);
-        }
-
-        return stepsContainer;
     }
-    return detailsEl.querySelector('.agent-steps-container');
+    return container;
 }
 
 
