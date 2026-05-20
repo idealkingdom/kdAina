@@ -185,6 +185,9 @@ COMMUNICATION
     };
 })();
 
+/**
+ * Persists and coordinates user configuration keys across the workspace.
+ */
 export class SettingsManager {
     private static readonly KEY = 'kdaina.customSettings';
     private static readonly _onDidUpdateSettings = new vscode.EventEmitter<AppSettings>();
