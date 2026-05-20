@@ -199,6 +199,7 @@ window.addEventListener('message', event => {
                             }
                         }
                         appendFilesSummary(getActiveTurn());
+                        appendFollowUpSuggestions(getActiveTurn(), activeStreamAccumulator);
                         scrollToBottom(true);
                     }, 0);
                 }

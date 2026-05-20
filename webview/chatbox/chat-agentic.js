@@ -771,4 +771,139 @@ function appendFilesSummary(turnEl) {
     }
 }
 
+/**
+ * Appends suggested follow-up chips at the bottom of the AI response.
+ * Supports both parsing <suggestions> tags and generating fallback contextual questions.
+ */
+function appendFollowUpSuggestions(turnEl, responseText) {
+    if (!turnEl || !responseText) return;
+
+    // Prevent duplicate suggestions in the same turn
+    if (turnEl.querySelector('.follow-up-suggestions-section')) return;
+
+    const messageContent = turnEl.querySelector('.system-message .message-content');
+    if (!messageContent) return;
+
+    let suggestions = [];
+
+    // 1. Attempt to parse structured suggestions from the response: <suggestions>["Q1", "Q2"]</suggestions>
+    const suggestionsTagRegex = /<suggestions>([\s\S]*?)<\/suggestions>/i;
+    const match = responseText.match(suggestionsTagRegex);
+    if (match && match[1]) {
+        try {
+            const parsed = JSON.parse(match[1].trim());
+            if (Array.isArray(parsed)) {
+                suggestions = parsed;
+            }
+        } catch (e) {
+            // If JSON parse fails, split by newline or list dashes
+            suggestions = match[1]
+                .split('\n')
+                .map(line => line.replace(/^[-*•\d.]\s*/, '').trim())
+                .filter(Boolean);
+        }
+    }
+
+    // Clean up suggestions markup from display if the text node hasn't been completely updated
+    const messageTextEl = messageContent.querySelector('.message-text');
+    if (messageTextEl && messageTextEl.innerHTML.includes('&lt;suggestions&gt;')) {
+        messageTextEl.innerHTML = messageTextEl.innerHTML.replace(/&lt;suggestions&gt;[\s\S]*?&lt;\/suggestions&gt;/gi, '');
+    }
+
+    // 2. Generate fallback recommendations if none were provided by the model
+    if (suggestions.length === 0) {
+        // Collect files from the files summary
+        const summaryPills = turnEl.querySelectorAll('.file-summary-pill .file-summary-name');
+        const fileNames = Array.from(summaryPills).map(el => el.textContent.trim());
+
+        if (fileNames.length > 0) {
+            const primaryFile = fileNames[0];
+            suggestions.push(`Explain the changes made to ${primaryFile}.`);
+            if (responseText.toLowerCase().includes('test') || responseText.toLowerCase().includes('spec')) {
+                suggestions.push(`Can you run tests to verify this fix?`);
+            } else {
+                suggestions.push(`Can you write unit tests for ${primaryFile}?`);
+            }
+            suggestions.push(`Are there any side effects or edge cases in this implementation?`);
+        } else if (responseText.toLowerCase().includes('error') || responseText.toLowerCase().includes('fail') || responseText.toLowerCase().includes('problem')) {
+            suggestions.push(`Explain the root cause of this error.`);
+            suggestions.push(`How can I troubleshoot this issue further?`);
+            suggestions.push(`What is the recommended fix for this?`);
+        } else if (responseText.includes('```')) {
+            suggestions.push(`Explain how to integrate and run this code.`);
+            suggestions.push(`Can you optimize this code snippet for performance?`);
+            suggestions.push(`What are the key parameters and configuration options?`);
+        } else {
+            suggestions.push(`Can you explain this in more detail?`);
+            suggestions.push(`Are there any alternative approaches to this?`);
+            suggestions.push(`What are the next steps for this implementation?`);
+        }
+    }
+
+    // Cap suggestions at 3 items to avoid cluttering UI
+    suggestions = suggestions.slice(0, 3);
+
+    if (suggestions.length === 0) return;
+
+    // Build suggestions container
+    const suggestionsSection = document.createElement('div');
+    suggestionsSection.className = 'follow-up-suggestions-section';
+
+    let chipsHTML = '';
+    suggestions.forEach(q => {
+        chipsHTML += `
+            <button class="suggestion-chip" title="Click to send instantly · Shift+Click to edit">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="suggestion-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                <span>${q}</span>
+            </button>
+        `;
+    });
+
+    suggestionsSection.innerHTML = `
+        <div class="suggestions-header">Suggested Follow-ups</div>
+        <div class="suggestions-container">
+            ${chipsHTML}
+        </div>
+    `;
+
+    // Hook up click listeners on each chip
+    suggestionsSection.querySelectorAll('.suggestion-chip').forEach(chip => {
+        chip.addEventListener('click', event => {
+            const text = chip.querySelector('span').textContent.trim();
+            const inputField = document.getElementById('chatMessage');
+            if (!inputField) return;
+
+            inputField.innerText = text;
+            inputField.focus();
+
+            // Set caret to end of text
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.selectNodeContents(inputField);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+
+            if (!event.shiftKey) {
+                // Instantly send
+                const sendBtn = document.getElementById('sendButton');
+                if (sendBtn && !sendBtn.classList.contains('disabled')) {
+                    sendBtn.click();
+                }
+            } else {
+                // Just scroll to it
+                inputField.scrollIntoView({ block: 'nearest' });
+            }
+        });
+    });
+
+    // Append to messageContent, before the footer
+    const currentFooter = messageContent.querySelector('.message-footer');
+    if (currentFooter) {
+        messageContent.insertBefore(suggestionsSection, currentFooter);
+    } else {
+        messageContent.appendChild(suggestionsSection);
+    }
+}
+
 /** ─── STAGING BAR LOGIC ─── **/

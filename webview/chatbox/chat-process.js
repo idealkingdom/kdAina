@@ -33,6 +33,7 @@ function appendAIMessage(response) {
         addAllCopyButtons();
         if (response && response.trim() !== "") {
             appendFilesSummary(activeTurn);
+            appendFollowUpSuggestions(activeTurn, response);
         }
     });
 }
