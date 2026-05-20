@@ -9,6 +9,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { outputChannel } from '../logger';
 import { ReviewManager } from '../chat/review-manager';
+import { ChatViewProvider } from '../chat/chat-view-provider';
+import { SettingsManager } from '../services/settings-manager';
 
 // ─── Persistent AI Terminal ─────────────────────────────────────────
 // Uses a REAL shell terminal (not pseudoterminal) for full interactivity.
@@ -415,6 +417,169 @@ export function validateCommandScope(command: string, cwd: string, workspaceRoot
 // Security is enforced by: hard blocklist, risk classifier, workspace scoping,
 // user confirmation prompts, and the consecutive failure circuit breaker.
 
+let bwrapAvailable: boolean | undefined = undefined;
+function isBwrapAvailable(): boolean {
+    if (bwrapAvailable !== undefined) { return bwrapAvailable; }
+    try {
+        const result = cp.spawnSync('which', ['bwrap']);
+        bwrapAvailable = result.status === 0;
+    } catch {
+        bwrapAvailable = false;
+    }
+    return bwrapAvailable;
+}
+
+let sandboxExecAvailable: boolean | undefined = undefined;
+function isSandboxExecAvailable(): boolean {
+    if (sandboxExecAvailable !== undefined) { return sandboxExecAvailable; }
+    try {
+        const result = cp.spawnSync('which', ['sandbox-exec']);
+        sandboxExecAvailable = result.status === 0;
+    } catch {
+        sandboxExecAvailable = false;
+    }
+    return sandboxExecAvailable;
+}
+
+function wrapCommandLinux(command: string, execCwd: string, workspaceRoot: string): string {
+    if (!isBwrapAvailable()) {
+        outputChannel.appendLine("[Sandbox] ⚠️ bwrap is enabled but not available on this system. Falling back to normal execution.");
+        return command;
+    }
+
+    const pathsToBind = ['/usr', '/etc', '/run', '/opt'];
+    const symlinksOrBinds = ['/bin', '/sbin', '/lib', '/lib64'];
+
+    const bwrapArgs: string[] = [];
+
+    for (const p of pathsToBind) {
+        if (fs.existsSync(p)) {
+            bwrapArgs.push('--ro-bind', p, p);
+        }
+    }
+
+    for (const p of symlinksOrBinds) {
+        if (fs.existsSync(p)) {
+            try {
+                const stats = fs.lstatSync(p);
+                if (stats.isSymbolicLink()) {
+                    const target = fs.readlinkSync(p);
+                    bwrapArgs.push('--symlink', target, p);
+                } else {
+                    bwrapArgs.push('--ro-bind', p, p);
+                }
+            } catch {
+                bwrapArgs.push('--ro-bind', p, p);
+            }
+        }
+    }
+
+    bwrapArgs.push('--bind', workspaceRoot, workspaceRoot);
+    bwrapArgs.push('--proc', '/proc');
+    bwrapArgs.push('--dev', '/dev');
+    bwrapArgs.push('--dir', '/tmp');
+    bwrapArgs.push('--dir', '/var');
+    bwrapArgs.push('--chdir', execCwd);
+    bwrapArgs.push('--unshare-user');
+    bwrapArgs.push('--unshare-ipc');
+    bwrapArgs.push('--unshare-pid');
+    bwrapArgs.push('--setenv', 'HOME', '/tmp');
+    bwrapArgs.push('--setenv', 'PATH', process.env.PATH || '');
+
+    const escapedCommand = command.replace(/'/g, "'\\''");
+    const argsStr = bwrapArgs.map(arg => {
+        if (/[^\w\/\.\-]/.test(arg)) {
+            return `'${arg.replace(/'/g, "'\\''")}'`;
+        }
+        return arg;
+    }).join(' ');
+
+    return `bwrap ${argsStr} -- /bin/bash -c '${escapedCommand}'`;
+}
+
+function wrapCommandMac(command: string, execCwd: string, workspaceRoot: string): string {
+    if (!isSandboxExecAvailable()) {
+        outputChannel.appendLine("[Sandbox] ⚠️ sandbox-exec is enabled but not available on macOS. Falling back to normal execution.");
+        return command;
+    }
+
+    const tmpDir = path.join(workspaceRoot, '.kdaina', 'tmp');
+    if (!fs.existsSync(tmpDir)) {
+        try {
+            fs.mkdirSync(tmpDir, { recursive: true });
+        } catch {}
+    }
+    const profilePath = path.join(tmpDir, 'mac-sandbox.sb');
+
+    // Split PATH to allow execution of binaries in system/user PATH
+    const pathDirs = (process.env.PATH || '').split(path.delimiter);
+    const allowedPathRules = pathDirs
+        .filter(dir => {
+            try {
+                return dir && fs.existsSync(dir);
+            } catch {
+                return false;
+            }
+        })
+        .map(dir => {
+            // Allow the bin dir and its parent directory (for libraries/node_modules access)
+            const escapedDir = dir.replace(/"/g, '\\"');
+            const parentDir = path.dirname(dir);
+            const escapedParent = parentDir.replace(/"/g, '\\"');
+            return `(allow file-read* process-exec (subpath "${escapedDir}"))
+(allow file-read* (subpath "${escapedParent}"))`;
+        })
+        .join('\n');
+
+    const profileContent = `(version 1)
+(deny default)
+(allow file-read* (subpath "/usr"))
+(allow file-read* (subpath "/System"))
+(allow file-read* (subpath "/Library"))
+(allow file-read* (subpath "/dev"))
+(allow file-read* (subpath "/etc"))
+(allow file-read* (subpath "/private/var"))
+(allow file-read* (subpath "/private/etc"))
+(allow file-read* file-write* (subpath "/private/tmp"))
+(allow file-read* file-write* (subpath "/var/folders"))
+(allow file-read* file-write* (subpath "${workspaceRoot}"))
+(allow process-exec (subpath "/bin"))
+(allow process-exec (subpath "/usr/bin"))
+(allow process-exec (subpath "/usr/local/bin"))
+(allow process-exec (subpath "${workspaceRoot}"))
+(allow process-fork)
+(allow network-outbound)
+${allowedPathRules}
+`;
+
+    try {
+        fs.writeFileSync(profilePath, profileContent, 'utf-8');
+    } catch (e) {
+        outputChannel.appendLine(`[Sandbox] Failed to write macOS sandbox profile: ${e}. Falling back to normal execution.`);
+        return command;
+    }
+
+    const escapedCommand = command.replace(/'/g, "'\\''");
+    return `sandbox-exec -f ${JSON.stringify(profilePath)} /bin/bash -c '${escapedCommand}'`;
+}
+
+function wrapCommandWindows(command: string, execCwd: string, workspaceRoot: string): string {
+    outputChannel.appendLine("[Sandbox] ℹ️ Terminal Sandbox is not natively supported on Windows. Falling back to normal execution with safety filters.");
+    return command;
+}
+
+function wrapCommandWithSandbox(command: string, execCwd: string, workspaceRoot: string): string {
+    const platform = process.platform;
+    if (platform === 'linux') {
+        return wrapCommandLinux(command, execCwd, workspaceRoot);
+    } else if (platform === 'darwin') {
+        return wrapCommandMac(command, execCwd, workspaceRoot);
+    } else if (platform === 'win32') {
+        return wrapCommandWindows(command, execCwd, workspaceRoot);
+    }
+    return command;
+}
+
 /**
  * Creates the system/terminal tools for the agentic loop.
  * NOTE: AI SDK v6 uses 'inputSchema' (not 'parameters') for tool schemas.
@@ -422,6 +587,15 @@ export function validateCommandScope(command: string, cwd: string, workspaceRoot
 export function createSysTools(chatId?: string) {
 
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+
+    const getTempDir = () => {
+        if (!workspaceRoot) { return os.tmpdir(); }
+        const dir = path.join(workspaceRoot, '.kdaina', 'tmp');
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        return dir;
+    };
 
     // ─── TOOL: run_command ──────────────────────────────────────────────
     const run_command = tool({
@@ -534,6 +708,19 @@ export function createSysTools(chatId?: string) {
                 };
             }
 
+            // Check sandbox setting
+            const context = ChatViewProvider.getContext();
+            let enableTerminalSandbox = false;
+            if (context) {
+                const settingsManager = new SettingsManager(context);
+                const settings = settingsManager.getSettings();
+                enableTerminalSandbox = settings.permissions?.enableTerminalSandbox === true;
+            }
+
+            const commandToExecute = enableTerminalSandbox 
+                ? wrapCommandWithSandbox(params.command, execCwd, workspaceRoot)
+                : params.command;
+
             if (isBackground) {
                 // ─── BACKGROUND MODE ────────────────────────────────────
                 // Spawn in a dedicated terminal. Supports up to MAX_BG_TERMINALS
@@ -608,12 +795,12 @@ export function createSysTools(chatId?: string) {
                 newTerminal.show(true);
 
                 const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-                const outFile = path.join(os.tmpdir(), `ai-bg-${id}.txt`);
+                const outFile = path.join(getTempDir(), `ai-bg-${id}.txt`);
 
                 // Run command and tee -a (append) output to a capped log file.
                 // We use `tee -a` for real-time terminal display + append file capture.
                 // This ensures external log truncation works perfectly without causing sparse null-byte gap files!
-                newTerminal.sendText(`cd ${JSON.stringify(execCwd)} && ${params.command} 2>&1 | tee -a ${JSON.stringify(outFile)}`, true);
+                newTerminal.sendText(`cd ${JSON.stringify(execCwd)} && ${commandToExecute} 2>&1 | tee -a ${JSON.stringify(outFile)}`, true);
 
                 outputChannel.appendLine(`[run_command] Background [${label}]: $ ${params.command} (cwd: ${execCwd})`);
 
@@ -684,8 +871,8 @@ export function createSysTools(chatId?: string) {
 
             // Use temp files for output capture
             const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-            const outFile = path.join(os.tmpdir(), `ai-out-${id}.txt`);
-            const exitFile = path.join(os.tmpdir(), `ai-exit-${id}.txt`);
+            const outFile = path.join(getTempDir(), `ai-out-${id}.txt`);
+            const exitFile = path.join(getTempDir(), `ai-exit-${id}.txt`);
 
             // Build the wrapped command:
             // 1. cd to the correct directory
@@ -693,7 +880,7 @@ export function createSysTools(chatId?: string) {
             // 3. Write exit code to a separate file
             // The user sees the command + output in the real terminal
             const cdCmd = `cd ${JSON.stringify(execCwd)}`;
-            const runCmd = `${params.command} 2>&1 | tee ${JSON.stringify(outFile)}; echo $? > ${JSON.stringify(exitFile)}`;
+            const runCmd = `${commandToExecute} 2>&1 | tee ${JSON.stringify(outFile)}; echo $? > ${JSON.stringify(exitFile)}`;
             
             ReviewManager.getInstance().setTerminalRunning(true);
             let output = '(no output)';
