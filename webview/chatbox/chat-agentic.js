@@ -810,29 +810,67 @@ function appendFollowUpSuggestions(turnEl, responseText) {
 
     // 2. Generate fallback recommendations if none were provided by the model
     if (suggestions.length === 0) {
+        // Gather context from tools run
+        const stepCards = Array.from(turnEl.querySelectorAll('.agent-step-card'));
+        const toolNames = stepCards.map(card => card.dataset.toolName).filter(Boolean);
+        
         // Collect files from the files summary
         const summaryPills = turnEl.querySelectorAll('.file-summary-pill .file-summary-name');
         const fileNames = Array.from(summaryPills).map(el => el.textContent.trim());
+        const primaryFile = fileNames[0] || '';
+        const ext = primaryFile ? primaryFile.split('.').pop().toLowerCase() : '';
 
-        if (fileNames.length > 0) {
-            const primaryFile = fileNames[0];
-            suggestions.push(`Explain the changes made to ${primaryFile}.`);
-            if (responseText.toLowerCase().includes('test') || responseText.toLowerCase().includes('spec')) {
-                suggestions.push(`Can you run tests to verify this fix?`);
-            } else {
-                suggestions.push(`Can you write unit tests for ${primaryFile}?`);
+        // Check if any command failed
+        let commandFailed = false;
+        stepCards.forEach(card => {
+            if (card.dataset.toolName === 'run_command') {
+                const termOutput = card.querySelector('.terminal-output');
+                if (termOutput && (termOutput.textContent.toLowerCase().includes('error') || termOutput.textContent.toLowerCase().includes('fail') || termOutput.textContent.toLowerCase().includes('exit status'))) {
+                    commandFailed = true;
+                }
             }
-            suggestions.push(`Are there any side effects or edge cases in this implementation?`);
-        } else if (responseText.toLowerCase().includes('error') || responseText.toLowerCase().includes('fail') || responseText.toLowerCase().includes('problem')) {
+        });
+
+        const resTextLower = responseText.toLowerCase();
+
+        if (commandFailed) {
+            suggestions.push(`Troubleshoot the command failure.`);
+            suggestions.push(`Can you run a different command to verify?`);
+            suggestions.push(`Show me the logs and error details.`);
+        } else if (fileNames.length > 0) {
+            suggestions.push(`Explain the changes made to ${primaryFile} in detail.`);
+            if (ext === 'css' || ext === 'scss') {
+                suggestions.push(`Let's refine the styling or layout of this UI.`);
+                suggestions.push(`Is the style responsive and compatible across browsers?`);
+            } else if (ext === 'html' || ext === 'vue' || ext === 'jsx' || ext === 'tsx') {
+                suggestions.push(`Can you verify the HTML accessibility (a11y)?`);
+                suggestions.push(`Can you check if there are any console warnings or errors?`);
+            } else {
+                if (resTextLower.includes('test') || resTextLower.includes('spec')) {
+                    suggestions.push(`Can you run tests to verify this fix?`);
+                } else {
+                    suggestions.push(`Can you write unit tests for ${primaryFile}?`);
+                }
+                suggestions.push(`Are there any potential side effects or edge cases in this implementation?`);
+            }
+        } else if (resTextLower.includes('error') || resTextLower.includes('fail') || resTextLower.includes('exception') || resTextLower.includes('crash')) {
             suggestions.push(`Explain the root cause of this error.`);
-            suggestions.push(`How can I troubleshoot this issue further?`);
-            suggestions.push(`What is the recommended fix for this?`);
+            suggestions.push(`What is the recommended fix for this issue?`);
+            suggestions.push(`How can I troubleshoot this error further?`);
+        } else if (toolNames.includes('web_search') || toolNames.includes('scrape_url')) {
+            suggestions.push(`Can you explore other search results for more details?`);
+            suggestions.push(`What are the alternative libraries or approaches for this?`);
+            suggestions.push(`Explain how to integrate the retrieved documentation.`);
         } else if (responseText.includes('```')) {
             suggestions.push(`Explain how to integrate and run this code.`);
-            suggestions.push(`Can you optimize this code snippet for performance?`);
+            if (resTextLower.includes('perform') || resTextLower.includes('slow') || resTextLower.includes('optimiz')) {
+                suggestions.push(`Can you optimize this code snippet for performance?`);
+            } else {
+                suggestions.push(`Can you simplify or clean up this code?`);
+            }
             suggestions.push(`What are the key parameters and configuration options?`);
         } else {
-            suggestions.push(`Can you explain this in more detail?`);
+            suggestions.push(`Can you explain this response in more detail?`);
             suggestions.push(`Are there any alternative approaches to this?`);
             suggestions.push(`What are the next steps for this implementation?`);
         }

@@ -390,7 +390,8 @@ export class ChatCoreService {
 
         // #64: Default Chat uses ONLY the global system prompt — no extra system info
         // System info is only needed for agentic mode (tool execution context)
-        const systemPrompt = settings.general?.systemPrompt || "You are an expert AI assistant.";
+        const baseSystemPrompt = settings.general?.systemPrompt || "You are an expert AI assistant.";
+        const systemPrompt = `${baseSystemPrompt}\n\nAt the very end of your response, suggest exactly 3 short, context-specific follow-up questions or next steps for the user. Output them in this format: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>.`;
         const steps = [{ content: systemPrompt }];
 
         let pipelineContext = currentMessage;
@@ -584,6 +585,7 @@ CRITICAL RULES:
 - Edits are applied DIRECTLY to the file. The user can review changes inline.
 - Use web_search proactively for external libraries or APIs. Don't guess — search first.
 - When multiple independent tool calls can be made, call them ALL AT ONCE in a single step.${todoInstruction}
+- At the very end of your final response (only after all tool calls are completed and you are presenting the final response to the user), suggest exactly 3 short, actionable follow-up questions or next steps. Format them exactly like this at the end: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>. Do not include suggestions during intermediate steps or plans.
 
 BROWSER TOOLS (for web testing & visual QA):
 - browser_open: Navigate to a URL in a real browser
