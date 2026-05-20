@@ -7,6 +7,29 @@ import * as vscode from 'vscode';
 import { WorkspaceIndexService } from '../services/workspace-index';
 import { ReviewManager } from '../chat/review-manager';
 
+export function calculateDiffStats(original: string, modified: string): { additions: number; deletions: number } {
+    const origLines = original ? original.split('\n') : [];
+    const modLines = modified ? modified.split('\n') : [];
+    
+    const dp: number[][] = Array(origLines.length + 1).fill(null).map(() => Array(modLines.length + 1).fill(0));
+    
+    for (let i = 1; i <= origLines.length; i++) {
+        for (let j = 1; j <= modLines.length; j++) {
+            if (origLines[i - 1] === modLines[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+    
+    const lcs = dp[origLines.length][modLines.length];
+    const deletions = origLines.length - lcs;
+    const additions = modLines.length - lcs;
+    
+    return { additions, deletions };
+}
+
 /**
  * Creates the file & AST tools for the agentic loop.
  * NOTE: AI SDK v6 uses 'inputSchema' (not 'parameters') for tool schemas.
@@ -56,6 +79,7 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
             if (cached) {
                 return {
                     file: params.filePath,
+                    absolutePath: absPath,
                     totalLines: cached.totalLines,
                     skeleton: cached.skeleton || '(No structural elements found)',
                     _cached: true
@@ -102,6 +126,7 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
 
             return {
                 file: params.filePath,
+                absolutePath: absPath,
                 totalLines: lines.length,
                 skeleton: skeletonStr,
             };
@@ -122,16 +147,17 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
                 return { error: `File not found: ${absPath}` };
             }
 
-            const clampedEnd = Math.min(params.endLine, params.startLine + 199);
             const content = fs.readFileSync(absPath, 'utf-8');
             const lines = content.split('\n');
             const totalLines = lines.length;
+            const clampedEnd = Math.min(params.endLine, params.startLine + 199, totalLines);
 
             const slice = lines.slice(params.startLine - 1, clampedEnd);
             const numbered = slice.map((l: string, i: number) => `L${params.startLine + i}: ${l}`).join('\n');
 
             return {
                 file: params.filePath,
+                absolutePath: absPath,
                 range: `${params.startLine}-${clampedEnd}`,
                 totalLines,
                 content: numbered,
@@ -225,10 +251,14 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
             // Auto-format + auto-verify
             const verification = await postEditVerify(fileUri);
 
+            const stats = calculateDiffStats(cleanTarget, cleanReplacement);
             const response: any = {
                 success: true,
                 message: 'Changes applied directly to file. User can review via inline highlights.',
                 file: params.filePath,
+                absolutePath: absPath,
+                additions: stats.additions,
+                deletions: stats.deletions,
                 linesReplaced: cleanTarget.split('\n').length
             };
 
@@ -282,6 +312,9 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
                 success: true,
                 message: 'File created successfully.',
                 file: params.filePath,
+                absolutePath: absPath,
+                additions: cleanContent ? cleanContent.split('\n').length : 0,
+                deletions: 0,
                 lines: cleanContent.split('\n').length
             };
 
