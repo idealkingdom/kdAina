@@ -232,9 +232,16 @@ function initModelDropdown() {
 
         const btn = document.createElement('button');
         btn.className = 'context-item';
+        if (m === initialModel) {
+            btn.classList.add('active');
+        }
         btn.innerHTML = `<span>${displayName}</span>`;
         btn.addEventListener('click', () => {
             currentModelLabel.textContent = displayName;
+
+            // Remove active class from other buttons
+            modelOptionsMenu.querySelectorAll('.context-item').forEach(i => i.classList.remove('active'));
+            btn.classList.add('active');
 
             // Update providerSettings
             MODELS.provider = modelObj.provider;

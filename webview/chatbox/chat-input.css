@@ -127,24 +127,19 @@
 .context-menu {
   position: absolute;
   bottom: 100%;
-  /* Sits exactly on top of the button */
   left: 0;
-  margin-bottom: 6px;
-  /* A tiny bit of breathing room */
-
-  width: 180px;
-  /* Compact width */
-  background: var(--vscode-menu-background, #252526);
-  border: 1px solid var(--vscode-menu-border, #454545);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
-  border-radius: 6px;
-  padding: 4px;
-
+  margin-bottom: 8px;
+  width: 190px;
+  background: color-mix(in srgb, var(--vscode-menu-background, #1e1e1e) 94%, transparent);
+  backdrop-filter: blur(12px) saturate(1.8);
+  -webkit-backdrop-filter: blur(12px) saturate(1.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 6px;
   display: flex;
   flex-direction: column;
-  z-index: 100;
-
-  /* Animation Origin */
+  z-index: 1000;
   transform-origin: bottom left;
 }
 
@@ -157,15 +152,14 @@
 
 /* Animation */
 .context-menu:not(.hidden) {
-  animation: popIn 0.1s cubic-bezier(0, 0, 0.2, 1) forwards;
+  animation: popIn 0.15s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 @keyframes popIn {
   from {
     opacity: 0;
-    transform: scale(0.95) translateY(5px);
+    transform: scale(0.92) translateY(8px);
   }
-
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -174,13 +168,13 @@
 
 /* --- HEADERS --- */
 .context-header {
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 700;
-  opacity: 0.5;
-  padding: 6px 8px 4px 8px;
+  color: var(--text-color, #ffffff);
+  opacity: 0.45;
+  padding: 6px 10px 4px 10px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--vscode-menu-foreground);
+  letter-spacing: 0.8px;
   pointer-events: none;
 }
 
@@ -189,25 +183,30 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 7px 10px;
   background: transparent;
   border: none;
-  border-radius: 4px;
-
+  border-radius: 6px;
   color: var(--vscode-menu-foreground, #cccccc);
   font-family: var(--font-ui);
   font-size: 11px;
-  /* Small, clean font */
   font-weight: 500;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
   text-align: left;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .context-item:hover {
-  background: var(--vscode-menu-selectionBackground, #094771);
-  color: var(--vscode-menu-selectionForeground, #ffffff);
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+  transform: translateX(3px);
+}
+
+.context-item.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--vscode-textLink-foreground, #3794ff);
+  font-weight: 600;
 }
 
 .ctx-icon {

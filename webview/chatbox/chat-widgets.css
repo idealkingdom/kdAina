@@ -146,24 +146,38 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 6px 10px;
+  margin: 2px 0;
   font-size: 11px;
-  color: var(--vscode-menu-foreground, var(--input-fg));
+  color: var(--vscode-menu-foreground, var(--input-fg, #cccccc));
 }
 
 .perm-select {
-  background: var(--vscode-dropdown-background, var(--input-bg));
-  color: var(--vscode-dropdown-foreground, var(--input-fg));
-  border: 1px solid var(--vscode-dropdown-border, var(--border-color));
-  border-radius: 4px;
-  padding: 2px 4px;
-  font-size: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-color, #e0e0e0);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 3px 20px 3px 8px;
+  font-size: 10.5px;
+  font-weight: 500;
   outline: none;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2.5'><path d='m6 9 6 6 6-6'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.perm-select:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .perm-select:focus {
-  border-color: var(--input-focus-border);
+  border-color: var(--vscode-focusBorder, #3794ff);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 /* Mini toggle for the Always Proceed switch in permissions dropdown */
@@ -187,23 +201,26 @@
   inset: 0;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 9px;
-  transition: background 0.2s;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
 .mini-toggle-slider::before {
   content: '';
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   left: 2px;
   bottom: 2px;
   background: #fff;
   border-radius: 50%;
-  transition: transform 0.2s;
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 .mini-toggle input:checked+.mini-toggle-slider {
-  background: #ffb74d;
+  background: var(--vscode-textLink-foreground, #3794ff);
+  border-color: transparent;
 }
 
 .mini-toggle input:checked+.mini-toggle-slider::before {
