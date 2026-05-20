@@ -1,6 +1,7 @@
 /*
 This function was originally from ChatViewProvider, however for simplicity and easy to access
 separated by another module.
+* Coordinates message routing, history logs, and file interactions.
 */
 import { outputChannel } from "../logger";
 import { CHAT_COMMANDS, ROLE } from "./chat-constants";
