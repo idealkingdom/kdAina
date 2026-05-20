@@ -290,6 +290,8 @@ function renderAgentStep(step) {
                 }
             } else if (step.toolName === 'list_workspace') {
                 targetName = 'Root';
+            } else if ((step.toolName === 'read_artifact' || step.toolName === 'manage_artifact') && typeof step.args.name === 'string') {
+                targetName = step.args.name;
             }
 
             if (targetName) {
