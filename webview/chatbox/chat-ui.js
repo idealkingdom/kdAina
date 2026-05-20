@@ -53,24 +53,28 @@ function updateActiveAgentUI(agentId, agentsList) {
 
     const chatIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`;
     const agentIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 4px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
-    const arrowIcon = `<svg class="dropdown-arrow" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>`;
+    const cycleIcon = `<svg class="cycle-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 6px; opacity: 0.7; vertical-align: middle;"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 3h5v5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 21H3v-5"/></svg>`;
 
     if (activeAgentId === 'default') {
         if (modeSelected) {
-            modeSelected.innerHTML = `<span class="mode-icon">${chatIcon}</span> Chat ${arrowIcon}`;
+            modeSelected.innerHTML = `<span class="mode-icon">${chatIcon}</span> Chat ${cycleIcon}`;
         }
     } else {
         const agents = agentsList || (window.VS_CONSTANTS ? window.VS_CONSTANTS.AGENTS : []);
         const agent = (agents || []).find(a => a.id === activeAgentId);
         if (agent && modeSelected) {
-            modeSelected.innerHTML = `<span class="mode-icon">${agentIcon}</span> ${escapeHtml(agent.name)} ${arrowIcon}`;
+            modeSelected.innerHTML = `<span class="mode-icon">${agentIcon}</span> ${escapeHtml(agent.name)} ${cycleIcon}`;
         } else {
             // Fallback to default if agent not found
             activeAgentId = 'default';
             if (modeSelected) {
-                modeSelected.innerHTML = `<span class="mode-icon">${chatIcon}</span> Chat ${arrowIcon}`;
+                modeSelected.innerHTML = `<span class="mode-icon">${chatIcon}</span> Chat ${cycleIcon}`;
             }
         }
+    }
+
+    if (modeDropdown) {
+        modeDropdown.title = "Click to Cycle Agent Mode (Chat → Architect → Action)";
     }
 
     // Update selected class in dropdown
@@ -87,34 +91,31 @@ function updateActiveAgentUI(agentId, agentsList) {
 
 updateActiveAgentUI(activeAgentId, AGENTS);
 
-// Dropdown Interactions
-if (modeDropdown) {
-    // Open/Close
+// Cycle Interactions
+if (modeDropdown && modeSelected) {
     modeSelected.addEventListener('click', (e) => {
         e.stopPropagation();
-        modeOptions.classList.toggle('hidden');
-        modeDropdown.classList.toggle('open');
-    });
 
-    // Select Option
-    modeOptions.addEventListener('click', (e) => {
-        const option = e.target.closest('.mode-option');
-        if (!option) { return; }
+        const optionsList = Array.from(modeOptions.querySelectorAll('.mode-option'));
+        if (optionsList.length <= 1) return;
 
-        updateActiveAgentUI(option.dataset.value);
+        const values = optionsList.map(opt => opt.dataset.value);
+        let currentIdx = values.indexOf(activeAgentId);
+        if (currentIdx === -1) currentIdx = 0;
+        const nextIdx = (currentIdx + 1) % values.length;
+        const nextValue = values[nextIdx];
+
+        // Trigger micro-animation
+        modeSelected.classList.remove('cycling');
+        void modeSelected.offsetWidth; // trigger reflow
+        modeSelected.classList.add('cycling');
+
+        updateActiveAgentUI(nextValue);
         persistAgentSelection();
-
-        // Hide
-        modeOptions.classList.add('hidden');
-        modeDropdown.classList.remove('open');
     });
 
-    // Close on outside click
-    document.addEventListener('click', () => {
-        if (modeOptions && !modeOptions.classList.contains('hidden')) {
-            modeOptions.classList.add('hidden');
-            modeDropdown.classList.remove('open');
-        }
+    modeSelected.addEventListener('animationend', () => {
+        modeSelected.classList.remove('cycling');
     });
 }
 
