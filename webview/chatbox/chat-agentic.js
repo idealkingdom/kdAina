@@ -502,13 +502,14 @@ function renderAgentStep(step) {
                 // Ensure the card is open so the terminal snippet is visible
                 targetCard.open = true;
 
-                // Clear any inline styles that might hide the details content
                 if (targetCard.style.display === 'none') {
                     targetCard.style.display = '';
                 }
 
                 const contentDiv = targetCard.querySelector('.step-content') || targetCard;
-                contentDiv.appendChild(terminalSnippet);
+                withAutoScroll(() => {
+                    contentDiv.appendChild(terminalSnippet);
+                });
             }
 
             // get_background_output: render a premium purple-themed terminal log snippet
@@ -546,7 +547,9 @@ function renderAgentStep(step) {
                 }
 
                 const contentDiv = targetCard.querySelector('.step-content') || targetCard;
-                contentDiv.appendChild(terminalSnippet);
+                withAutoScroll(() => {
+                    contentDiv.appendChild(terminalSnippet);
+                });
             }
         }
 

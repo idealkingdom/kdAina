@@ -84,7 +84,7 @@ function withAutoScroll(callback) {
  * Smoothly scrolls chat window to bottom depending on auto-scroll state.
  */
 function scrollToBottom(force = false) {
-    if (force) {
+    if (force || shouldAutoScroll()) {
         scrollToStreamingContent();
     }
 }
