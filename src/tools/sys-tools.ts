@@ -236,6 +236,9 @@ let consecutiveFailureCount = 0;
 const MAX_CONSECUTIVE_FAILURES = 3;
 
 /** Clear the test retry tracker (call at start of each agentic request). */
+/**
+ * Executes terminal commands safely by wrapping them in platform-specific sandboxes.
+ */
 export function clearTestRetryTracker() {
     testRetryTracker.clear();
     consecutiveFailureCount = 0;
