@@ -1,5 +1,8 @@
 import * as assert from 'assert';
 
+/**
+ * Smart Command Completion System - Integration and Unit Tests
+ */
 // ─── Smart Command Completion System — Unit Tests ──────────────────────
 // Tests pattern matching for stall detection, interactive prompts,
 // exit code inference, and negative/edge cases.
