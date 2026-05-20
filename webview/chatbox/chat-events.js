@@ -647,3 +647,22 @@ function finalizeAgentStepsForHistory() {
         }
     });
 }
+
+// Double-click to expand/collapse message content
+if (chatbox) {
+    chatbox.addEventListener('dblclick', event => {
+        // Ignore double-clicks on buttons, links, interactive elements, or code blocks
+        if (event.target.closest('button, a, .inline-attachment-pill, .suggestion-chip, code, pre, .file-edit-row')) {
+            return;
+        }
+
+        const messageBubble = event.target.closest('.user-message, .system-message');
+        if (messageBubble) {
+            const content = messageBubble.querySelector('.message-content');
+            if (content) {
+                content.classList.toggle('expanded');
+                scrollToBottom(true);
+            }
+        }
+    });
+}

@@ -232,6 +232,10 @@ function createOpenAIReasoningFetch() {
                                         delta.reasoning_content = null;
                                     }
 
+                                    if (typeof delta.content === 'string' && delta.content.trim() === 'None') {
+                                        delta.content = '';
+                                    }
+
                                     const hasReasoning = 'reasoning_content' in delta;
                                     const reasoningVal = delta.reasoning_content;
                                     const hasContent = delta.content !== undefined && delta.content !== null && delta.content !== '';

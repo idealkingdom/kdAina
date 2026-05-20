@@ -166,6 +166,31 @@ span.logo svg {
   border: none;
   align-items: flex-start;
   padding: 0;
+  max-height: 25vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.system-message .message-content.expanded {
+  max-height: none !important;
+}
+
+/* Custom scrollbars for system messages */
+.system-message .message-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.system-message .message-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.system-message .message-content::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.system-message .message-content::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 /* #42: Agentic AI user message — inline task prompt */
@@ -213,6 +238,10 @@ span.logo svg {
   overflow-y: auto;
   padding-right: 4px;
   /* Space for scrollbar */
+}
+
+.user-message .message-content.expanded {
+  max-height: none !important;
 }
 
 /* Custom minimal scrollbar for message content */

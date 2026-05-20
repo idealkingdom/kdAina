@@ -305,8 +305,9 @@
   padding: 2px 4px !important;
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important;
-  width: 100% !important;
+  justify-content: flex-start !important;
+  gap: 8px !important;
+  width: max-content !important;
   box-sizing: border-box !important;
 }
 
