@@ -18,18 +18,10 @@ function updateLastTurnMinHeight() {
 
     if (!lastTurn) return;
 
-    // Temporarily clear min-height to measure natural scroll height
-    lastTurn.style.minHeight = '';
-    const totalNaturalHeight = chatLog.scrollHeight;
+    const stickyHeader = lastTurn.querySelector('.user-message-wrapper');
+    const stickyHeight = stickyHeader ? stickyHeader.offsetHeight : 0;
 
-    // If the entire conversation naturally fits within the viewport, do not set min-height
-    if (totalNaturalHeight <= viewportHeight) {
-        _prevMinHeightTurn = lastTurn;
-        return;
-    }
-
-    // Set min-height to the full viewport height to allow the last turn to scroll to the top
-    lastTurn.style.minHeight = viewportHeight + 'px';
+    lastTurn.style.minHeight = (viewportHeight - stickyHeight) + 'px';
     _prevMinHeightTurn = lastTurn;
 }
 
