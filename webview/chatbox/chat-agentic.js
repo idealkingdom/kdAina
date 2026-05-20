@@ -521,7 +521,6 @@ function renderAgentStep(step) {
 
                 const terminalSnippet = document.createElement('div');
                 terminalSnippet.className = 'terminal-snippet';
-                terminalSnippet.style.borderLeft = '2px solid var(--vscode-focusBorder)';
 
                 let outputText = stripAnsi(step.result.output).trim();
                 if (outputText.length > 2000) {
@@ -534,19 +533,13 @@ function renderAgentStep(step) {
                 const escapedOutput = outputText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
                 terminalSnippet.innerHTML = `
-                    <div class="terminal-prompt" style="color: var(--vscode-focusBorder); font-weight: 500;">
-                        <span class="terminal-cwd" style="color: var(--vscode-focusBorder);">[Logs: ${safeLabel}]</span> $ tail -n ${linesArg}${searchArg}
+                    <div class="terminal-prompt">
+                        <span class="terminal-cwd">[Logs: ${safeLabel}]</span> $ tail -n ${linesArg}${searchArg}
                     </div>
-                    <div class="terminal-output" style="color: var(--vscode-terminal-ansiBrightWhite, #ffffff); opacity: 0.9;">${escapedOutput}</div>
+                    <div class="terminal-output">${escapedOutput}</div>
                 `;
 
                 // Style the parent card
-                targetCard.style.borderLeft = '3px solid var(--vscode-focusBorder)';
-                const header = targetCard.querySelector('.step-header');
-                if (header) {
-                    header.style.color = 'var(--vscode-focusBorder)';
-                }
-
                 targetCard.open = true;
                 if (targetCard.style.display === 'none') {
                     targetCard.style.display = '';
