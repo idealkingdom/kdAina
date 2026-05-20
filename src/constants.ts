@@ -51,6 +51,7 @@ export interface AppSettings {
         writeFilesConfirmation: boolean;
         commandSafetyMode: 'all' | 'smart' | 'dangerous' | 'none';
         alwaysProceed?: boolean;
+        enableTerminalSandbox?: boolean;
     };
     ui: {
         sidebarPosition: 'left' | 'right';
