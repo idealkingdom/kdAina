@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * Shared configuration and setting key constant identifiers.
+ */
 export const EXTENSION_NAME = 'kdaina';
 export const DISPLAY_NAME = 'kdAina';
 
