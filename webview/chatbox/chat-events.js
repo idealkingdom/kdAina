@@ -188,6 +188,8 @@ window.addEventListener('message', event => {
                     // Force a final synchronous render before clearing references
                     activeStreamNode.innerHTML = marked.parse(activeStreamAccumulator);
                     activeStreamNode._renderPending = false;
+                    // Capture accumulator text before it's cleared below
+                    const finalResponseText = activeStreamAccumulator;
                     setTimeout(() => {
                         hljs.highlightAll();
                         addAllCopyButtons();
@@ -199,7 +201,7 @@ window.addEventListener('message', event => {
                             }
                         }
                         appendFilesSummary(getActiveTurn());
-                        appendFollowUpSuggestions(getActiveTurn(), activeStreamAccumulator);
+                        appendFollowUpSuggestions(getActiveTurn(), finalResponseText);
                         scrollToBottom(true);
                     }, 0);
                 }
