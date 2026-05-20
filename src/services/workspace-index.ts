@@ -62,7 +62,10 @@ export class WorkspaceIndexService {
      * Excludes: caches, virtual envs, binaries, lock files, IDE configs, etc.
      * Only indexes source code, config, and documentation files.
      */
-    public async refresh(currentChatId?: string): Promise<void> {
+        /**
+     * Rebuilds the in-memory index of workspace files, ignoring build outputs.
+     */
+public async refresh(currentChatId?: string): Promise<void> {
         // Comprehensive glob exclusion — covers all major ecosystems
         const excludeGlob = [
             '**/node_modules/**',
