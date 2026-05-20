@@ -554,10 +554,8 @@ This shows a live checklist in the chat so the user can track what's done and wh
             ? `\n- At the very end of your final response (only after all tool calls are completed and you are presenting the final response to the user), suggest exactly 3 short, actionable follow-up questions or next steps. Format them exactly like this at the end: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>. Do not include suggestions during intermediate steps or plans.`
             : '';
 
-        // Browser instructions section — only include when browser tools are loaded
-        const browserKeywords = /browser|page|web|ui|url|http|localhost|visual|screenshot|click|scrap|render/i;
-        const needsBrowser = browserKeywords.test(currentMessage) ||
-            contextMessages.some(m => typeof m.content === 'string' && browserKeywords.test(m.content));
+        // Optimize: Enable browser tools for all complex requests. Omit only for simple requests.
+        const needsBrowser = !isSimple;
 
         const browserSection = needsBrowser ? `
 
