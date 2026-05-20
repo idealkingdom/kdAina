@@ -24,9 +24,13 @@ function appendAIMessage(response) {
     const newMessageElement = tempDiv.firstElementChild;
 
     withAutoScroll(() => {
-        getActiveTurn().appendChild(newMessageElement);
+        const activeTurn = getActiveTurn();
+        activeTurn.appendChild(newMessageElement);
         hljs.highlightAll();
         addAllCopyButtons();
+        if (response && response.trim() !== "") {
+            appendFilesSummary(activeTurn);
+        }
     });
 }
 
@@ -44,6 +48,11 @@ function resetChat(content) {
     document.querySelectorAll('details.agent-steps-group').forEach(group => {
         if (group.dataset.timer) {
             clearInterval(parseInt(group.dataset.timer));
+        }
+    });
+    document.querySelectorAll('.agent-thinking-block').forEach(block => {
+        if (block.dataset.thinkTimer) {
+            clearInterval(parseInt(block.dataset.thinkTimer));
         }
     });
     clearWaitingIndicator();
