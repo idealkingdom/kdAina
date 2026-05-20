@@ -106,32 +106,47 @@ window.addEventListener('message', event => {
             hideLoadingIndicator(); // Always hide loading, even if no chunks arrived
             clearWaitingIndicator(); // Remove any between-step indicator
 
-            // Finalize open agent groups
-            document.querySelectorAll('details.agent-steps-group').forEach(group => {
-                const stepsContainer = group.querySelector('.agent-steps-container');
-                if (stepsContainer && stepsContainer.children.length === 0) {
-                    if (group.dataset.timer) {
-                        clearInterval(parseInt(group.dataset.timer));
-                    }
-                    group.remove();
+            // Finalize open agent groups by wrapping them in details
+            document.querySelectorAll('div.agent-steps-container:not([data-finalized="true"])').forEach(container => {
+                if (container.children.length === 0) {
+                    container.remove();
                 } else {
-                    if (group.dataset.timer) {
-                        clearInterval(parseInt(group.dataset.timer));
-                        delete group.dataset.timer;
+                    const startTime = parseInt(container.dataset.startTime || '0', 10);
+                    const ms = startTime ? Date.now() - startTime : 0;
+                    const secs = Math.floor(ms / 1000);
 
-                        const ms = Date.now() - parseInt(group.dataset.startTime);
-                        const secs = Math.floor(ms / 1000);
-                        const summaryText = group.querySelector('.summary-text');
-                        if (summaryText) {
-                            if (secs === 0) {
-                                summaryText.textContent = `Completed steps`;
-                            } else {
-                                summaryText.textContent = `Worked for ${secs}s`;
-                            }
-                        }
-                        group.open = false; // Close it to keep UI clean
+                    // Create the wrapper details element
+                    const details = document.createElement('details');
+                    details.className = 'agent-steps-group';
+                    details.open = false; // Collapse by default after completion
+                    details.dataset.finalized = "true";
+
+                    const summary = document.createElement('summary');
+                    summary.className = 'agent-steps-summary';
+                    
+                    let label = '';
+                    if (secs === 0) {
+                        label = 'Completed steps';
+                    } else if (secs >= 60) {
+                        const mins = Math.floor(secs / 60);
+                        const remainingSecs = secs % 60;
+                        label = `Worked for ${mins}m${remainingSecs > 0 ? ` ${remainingSecs}s` : ''}`;
+                    } else {
+                        label = `Worked for ${secs}s`;
                     }
-                    group.dataset.finalized = "true";
+                    
+                    summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">${label}</span>`;
+                    
+                    details.appendChild(summary);
+
+                    // Insert details wrapper and move container inside it
+                    const parent = container.parentNode;
+                    if (parent) {
+                        parent.insertBefore(details, container);
+                        details.appendChild(container);
+                    }
+
+                    container.dataset.finalized = "true";
                 }
             });
 
@@ -173,6 +188,14 @@ window.addEventListener('message', event => {
                     setTimeout(() => {
                         hljs.highlightAll();
                         addAllCopyButtons();
+                        const systemMsgEl = activeStreamNode ? activeStreamNode.closest('.system-message') : null;
+                        if (systemMsgEl) {
+                            const timeEl = systemMsgEl.querySelector('.message-time');
+                            if (timeEl) {
+                                timeEl.textContent = getCurrentDate();
+                            }
+                        }
+                        appendFilesSummary(getActiveTurn());
                         scrollToBottom(true);
                     }, 0);
                 }
@@ -496,7 +519,7 @@ window.addEventListener('message', event => {
                         tbWritePerm.style.opacity = isAP ? '0.4' : '1';
                     }
                     if (tbCmdPerm) {
-                        tbCmdPerm.value = isAP ? 'auto' : (s.permissions.runCommandsConfirmation ? 'ask' : 'auto');
+                        tbCmdPerm.value = isAP ? 'auto' : ((s.permissions.commandSafetyMode && s.permissions.commandSafetyMode !== 'none') ? 'ask' : 'auto');
                         tbCmdPerm.disabled = isAP;
                         tbCmdPerm.style.opacity = isAP ? '0.4' : '1';
                     }
@@ -588,5 +611,33 @@ function finalizeAgentStepsForHistory() {
         }
         group.open = false;
         group.dataset.finalized = "true";
+        
+        const container = group.querySelector('div.agent-steps-container');
+        if (container) {
+            container.dataset.finalized = "true";
+        }
+    });
+
+    document.querySelectorAll('div.agent-steps-container:not([data-finalized="true"])').forEach(container => {
+        if (container.children.length === 0) {
+            container.remove();
+        } else {
+            const details = document.createElement('details');
+            details.className = 'agent-steps-group';
+            details.open = false;
+            details.dataset.finalized = "true";
+
+            const summary = document.createElement('summary');
+            summary.className = 'agent-steps-summary';
+            summary.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="chevron"><polyline points="9 18 15 12 9 6"></polyline></svg> <span class="summary-text">Completed steps</span>`;
+            details.appendChild(summary);
+
+            const parent = container.parentNode;
+            if (parent) {
+                parent.insertBefore(details, container);
+                details.appendChild(container);
+            }
+            container.dataset.finalized = "true";
+        }
     });
 }
