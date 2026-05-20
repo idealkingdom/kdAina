@@ -14,7 +14,8 @@ let currentSettings = {
         readFilesConfirmation: false,
         writeFilesConfirmation: true,
         commandSafetyMode: 'smart',
-        alwaysProceed: false
+        alwaysProceed: false,
+        enableTerminalSandbox: false
     },
     ui: {
         fontFamily: '',
@@ -136,6 +137,7 @@ const deleteTemplateBtn = document.getElementById('deleteTemplateBtn');
 const commandSafetyMode = document.getElementById('commandSafetyMode');
 const allowExternalMediaToggle = document.getElementById('allowExternalMedia');
 const contextModeToggle = document.getElementById('contextModeToggle');
+const enableTerminalSandboxToggle = document.getElementById('enableTerminalSandbox');
 let isKeyVisible = false;
 
 // External media toggle handler
@@ -162,6 +164,19 @@ if (commandSafetyMode) {
         vscode.postMessage({
             command: 'saveSetting',
             data: { category: 'permissions', key: 'commandSafetyMode', value: e.target.value }
+        });
+    });
+}
+
+if (enableTerminalSandboxToggle) {
+    enableTerminalSandboxToggle.addEventListener('change', (e) => {
+        if (!currentSettings.permissions) currentSettings.permissions = {};
+        currentSettings.permissions.enableTerminalSandbox = e.target.checked;
+        persistSettings();
+        
+        vscode.postMessage({
+            command: 'saveSetting',
+            data: { category: 'permissions', key: 'enableTerminalSandbox', value: e.target.checked }
         });
     });
 }
@@ -834,6 +849,10 @@ function populateForm() {
             commandSafetyMode.value = currentSettings.permissions.commandSafetyMode || 'smart';
         }
 
+        if (enableTerminalSandboxToggle) {
+            enableTerminalSandboxToggle.checked = currentSettings.permissions.enableTerminalSandbox === true;
+        }
+
         // Auto-detect template if it matches exactly
         if (themeTemplateSelect && ui.customCss) {
             let foundMatch = false;
@@ -892,6 +911,13 @@ function collectSettings() {
     }
     if (contextModeToggle) {
         currentSettings.general.contextMode = contextModeToggle.checked ? 'compact' : 'full';
+    }
+
+    if (!currentSettings.permissions) {
+        currentSettings.permissions = {};
+    }
+    if (enableTerminalSandboxToggle) {
+        currentSettings.permissions.enableTerminalSandbox = enableTerminalSandboxToggle.checked;
     }
 
     
