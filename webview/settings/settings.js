@@ -1,5 +1,8 @@
 import { ProviderRegistry } from './providers/index.js';
 
+/**
+ * Settings webview controller logic for real-time keybinding and agent configs.
+ */
 const vscode = acquireVsCodeApi();
 
 // --- STATE ---
