@@ -37,18 +37,16 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
     const cognitiveTools = createCognitiveTools(options?.tier || 'mid', options?.chatId);
     const artifactTools = createArtifactTools(options?.chatId || 'unknown_chat');
 
-    const allTools: any = {
+    const browserTools = options?.enableBrowserTools !== false ? createBrowserTools() : {};
+
+    const allTools = {
         ...fileTools,
         ...sysTools,
         ...webTools,
         ...cognitiveTools,
-        ...artifactTools
+        ...artifactTools,
+        ...browserTools
     };
-
-    if (options?.enableBrowserTools !== false) {
-        const browserTools = createBrowserTools();
-        Object.assign(allTools, browserTools);
-    }
 
     const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url', 'web_search', 'get_workspace_problems', 'read_artifact', 'list_background_processes', 'get_background_output'];
     const writeTools = ['chunk_replace', 'create_file', 'manage_artifact'];

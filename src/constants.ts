@@ -55,6 +55,7 @@ export interface AppSettings {
         commandSafetyMode: 'all' | 'smart' | 'dangerous' | 'none';
         alwaysProceed?: boolean;
         enableTerminalSandbox?: boolean;
+        enableBrowserTools?: boolean;
     };
     ui: {
         sidebarPosition: 'left' | 'right';

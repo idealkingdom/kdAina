@@ -521,56 +521,27 @@ export class ChatCoreService {
 When handling complex multi-step requests, call update_task_progress after each major step to report your progress.
 This shows a live checklist in the chat so the user can track what's done and what's remaining.`;
 
-        // Optimize: Check if request is simple (greetings, general chat, simple command runs)
-        // to skip injecting file tree, editor context, and verbose system instructions.
-        const isSimple = typeof currentMessage === 'string' && currentMessage.length < 120 && 
-            !/(write|create|edit|change|fix|implement|add|refactor|delete|remove|search|find|replace|code|file|folder|directory|path|class|function|method|struct|enum|error|bug|compile|lint|preview|test|debug|update|rename|check|review|show|import|export|component|module|config|setup|migrate|deploy|install|readme|style|css|html|type|interface|schema|database|api|route|endpoint|model|view|template|hook|state|prop|variable|commit|push|pull|merge|branch|diff|log|package|version|dependency)/i.test(currentMessage);
+        // #51: Include workspace file tree in context (compact mode to save tokens)
+        await this.workspaceIndex.refresh();
+        const fileTree = this.workspaceIndex.getCompactTreeString();
+        // Cap the tree to avoid blowing up the context window
+        const maxTreeChars = 4000;
+        const truncatedTree = fileTree.length > maxTreeChars
+            ? fileTree.substring(0, maxTreeChars) + '\n... (truncated, use list_workspace for full tree)'
+            : fileTree;
 
-        let truncatedTree = '';
-        let editorSection = '';
-        if (isSimple) {
-            outputChannel.appendLine(`[Agentic] Detected simple request. Omit fileTree and editorSection from initial prompt to save tokens.`);
-            truncatedTree = '(Omitted for simple request to save tokens. Use list_workspace if needed)';
-            editorSection = '';
-        } else {
-            // #51: Include workspace file tree in context (compact mode to save tokens)
-            await this.workspaceIndex.refresh();
-            const fileTree = this.workspaceIndex.getCompactTreeString();
-            // Cap the tree to avoid blowing up the context window
-            const maxTreeChars = 4000;
-            truncatedTree = fileTree.length > maxTreeChars
-                ? fileTree.substring(0, maxTreeChars) + '\n... (truncated, use list_workspace for full tree)'
-                : fileTree;
-
-            // #55: Auto-inject active editor context so the agent doesn't waste tool calls
-            const activeEditorCtx = await this.workspaceIndex.getActiveEditorContext();
-            editorSection = activeEditorCtx
-                ? `\n--- ACTIVE EDITOR FILES ---\nThese files are currently open in the user's editor. You already have their skeletons and cursor positions. Do NOT re-read them with read_file_skeleton unless you need fresh data after an edit.\n${activeEditorCtx}\n`
-                : '';
-        }
+        // #55: Auto-inject active editor context so the agent doesn't waste tool calls
+        const activeEditorCtx = await this.workspaceIndex.getActiveEditorContext();
+        const editorSection = activeEditorCtx
+            ? `\n--- ACTIVE EDITOR FILES ---\nThese files are currently open in the user's editor. You already have their skeletons and cursor positions. Do NOT re-read them with read_file_skeleton unless you need fresh data after an edit.\n${activeEditorCtx}\n`
+            : '';
 
         const suggestionsEnabled = settings.general?.enableSuggestions !== false;
         const suggestionsInstruction = suggestionsEnabled
             ? `\n- At the very end of your final response (only after all tool calls are completed and you are presenting the final response to the user), suggest exactly 3 short, actionable follow-up questions or next steps. Format them exactly like this at the end: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>. Do not include suggestions during intermediate steps or plans.`
             : '';
 
-        // Optimize: Enable browser tools for all complex requests. Omit only for simple requests.
-        const needsBrowser = !isSimple;
-
-        const browserSection = needsBrowser ? `
-
-BROWSER TOOLS (for web testing & visual QA):
-- browser_open: Navigate to a URL in a real browser
-- browser_snapshot: Get the accessibility tree with refs (@e1, @e2) — this is your "eyes"
-- browser_action: Interact with elements (click, fill, type, select, hover, scroll, press)
-- browser_get: Extract text, HTML, values, page title, URL from the page
-- browser_evaluate: Run JavaScript in the page context
-- browser_close: Close the browser when done
-BROWSER WORKFLOW: open → snapshot → action → snapshot → verify → close
-ALWAYS snapshot before interacting. Use refs (@eN) from the LATEST snapshot only.
-For forms: use fill (clears input first), not type (appends). Re-snapshot after actions.` : '';
-
-        const agenticSystemPrompt = `${systemPrompt}
+        let agenticSystemPrompt = `${systemPrompt}
 
 ${systemInfo}
 ${artifactsContext}
@@ -621,13 +592,29 @@ CRITICAL RULES:
 - Always verify your changes compile and don't introduce workspace problems after editing.
 - Edits are applied DIRECTLY to the file. The user can review changes inline.
 - Use web_search proactively for external libraries or APIs. Don't guess — search first.
-- When multiple independent tool calls can be made, call them ALL AT ONCE in a single step.${todoInstruction}${suggestionsInstruction}${browserSection}
+- When multiple independent tool calls can be made, call them ALL AT ONCE in a single step.${todoInstruction}${suggestionsInstruction}
 
 CONTEXT PRIORITY:
 - The LAST user message is your CURRENT TASK. Focus all effort on it.
 - Earlier messages in this conversation are BACKGROUND CONTEXT ONLY — they show what was discussed before.
 - Do NOT re-execute, re-explain, or revisit completed tasks from earlier messages unless the user explicitly asks.
 - Treat prior assistant responses as already-delivered work. Your job is the NEW request.`;
+
+        // Conditionally inject browser tools documentation into system prompt
+        if (settings.permissions?.enableBrowserTools !== false) {
+            agenticSystemPrompt += `
+
+BROWSER TOOLS (for web testing & visual QA):
+- browser_open: Navigate to a URL in a real browser
+- browser_snapshot: Get the accessibility tree with refs (@e1, @e2) — this is your "eyes"
+- browser_action: Interact with elements (click, fill, type, select, hover, scroll, press)
+- browser_get: Extract text, HTML, values, page title, URL from the page
+- browser_evaluate: Run JavaScript in the page context
+- browser_close: Close the browser when done
+BROWSER WORKFLOW: open → snapshot → action → snapshot → verify → close
+ALWAYS snapshot before interacting. Use refs (@eN) from the LATEST snapshot only.
+For forms: use fill (clears input first), not type (appends). Re-snapshot after actions.`;
+        }
 
 
         // Resolve and inject rules (global + agent-linked)
@@ -691,8 +678,6 @@ CONTEXT PRIORITY:
         // Shared mutable step counter — tool-registry reads this to inject budget info into tool results
         const stepBudget = { current: 0, max: 0 }; // max is set after we compute maxSteps
 
-        // needsBrowser is computed above alongside the system prompt
-
         // Apply alwaysProceed override — if enabled, skip all confirmation dialogs
         const alwaysProceed = settings.permissions?.alwaysProceed === true;
         const tools = createToolRegistry(this.workspaceIndex, {
@@ -703,7 +688,7 @@ CONTEXT PRIORITY:
             readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
             writeFilesConfirmation: alwaysProceed ? false : (settings.permissions?.writeFilesConfirmation ?? true),
             commandSafetyMode: alwaysProceed ? 'none' : (settings.permissions?.commandSafetyMode ?? 'smart'),
-            enableBrowserTools: needsBrowser,
+            enableBrowserTools: settings.permissions?.enableBrowserTools !== false,
             onApprovalRequest: async (toolCallId, toolName, args, opts) => {
                 if (abortSignal?.aborted) {
                     return;

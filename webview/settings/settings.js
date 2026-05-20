@@ -18,7 +18,8 @@ let currentSettings = {
         writeFilesConfirmation: true,
         commandSafetyMode: 'smart',
         alwaysProceed: false,
-        enableTerminalSandbox: false
+        enableTerminalSandbox: false,
+        enableBrowserTools: true
     },
     ui: {
         fontFamily: '',
@@ -141,6 +142,7 @@ const commandSafetyMode = document.getElementById('commandSafetyMode');
 const allowExternalMediaToggle = document.getElementById('allowExternalMedia');
 const contextModeToggle = document.getElementById('contextModeToggle');
 const enableTerminalSandboxToggle = document.getElementById('enableTerminalSandbox');
+const enableBrowserToolsToggle = document.getElementById('enableBrowserTools');
 const enableSuggestionsToggle = document.getElementById('enableSuggestions');
 let isKeyVisible = false;
 
@@ -181,6 +183,19 @@ if (enableTerminalSandboxToggle) {
         vscode.postMessage({
             command: 'saveSetting',
             data: { category: 'permissions', key: 'enableTerminalSandbox', value: e.target.checked }
+        });
+    });
+}
+
+if (enableBrowserToolsToggle) {
+    enableBrowserToolsToggle.addEventListener('change', (e) => {
+        if (!currentSettings.permissions) currentSettings.permissions = {};
+        currentSettings.permissions.enableBrowserTools = e.target.checked;
+        persistSettings();
+        
+        vscode.postMessage({
+            command: 'saveSetting',
+            data: { category: 'permissions', key: 'enableBrowserTools', value: e.target.checked }
         });
     });
 }
@@ -875,6 +890,10 @@ function populateForm() {
             enableTerminalSandboxToggle.checked = currentSettings.permissions.enableTerminalSandbox === true;
         }
 
+        if (enableBrowserToolsToggle) {
+            enableBrowserToolsToggle.checked = currentSettings.permissions.enableBrowserTools !== false;
+        }
+
         // Auto-detect template if it matches exactly
         if (themeTemplateSelect && ui.customCss) {
             let foundMatch = false;
@@ -942,6 +961,9 @@ function collectSettings() {
     }
     if (enableTerminalSandboxToggle) {
         currentSettings.permissions.enableTerminalSandbox = enableTerminalSandboxToggle.checked;
+    }
+    if (enableBrowserToolsToggle) {
+        currentSettings.permissions.enableBrowserTools = enableBrowserToolsToggle.checked;
     }
 
     

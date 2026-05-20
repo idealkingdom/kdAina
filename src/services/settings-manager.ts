@@ -48,7 +48,8 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
             writeFilesConfirmation: true,
             commandSafetyMode: 'smart',
             alwaysProceed: false,
-            enableTerminalSandbox: false
+            enableTerminalSandbox: false,
+            enableBrowserTools: true
         },
         ui: {
             sidebarPosition: 'right',
