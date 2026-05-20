@@ -51,6 +51,23 @@ export class SettingsView {
                         });
                         break;
 
+                    case 'saveSetting':
+                    case 'updateNestedSetting': {
+                        const { category, key, value } = message.data;
+                        const currentSettings = this._settingsManager.getSettings();
+                        if (currentSettings[category as keyof typeof currentSettings]) {
+                            (currentSettings[category as keyof typeof currentSettings] as any)[key] = value;
+                            await this._settingsManager.updateSettings({ [category]: currentSettings[category as keyof typeof currentSettings] });
+                            
+                            // Broadcast live settings update to all chat webviews
+                            ChatViewProvider.getInstance().postMessage({
+                                command: 'settingsChanged',
+                                settings: currentSettings
+                            });
+                        }
+                        break;
+                    }
+
                     case 'updateVsCodeSetting': {
                         const { key, value } = message.data;
                         const config = vscode.workspace.getConfiguration('kdaina');
