@@ -134,7 +134,10 @@ export function createFileTools(workspaceIndex: WorkspaceIndexService) {
     } as any);
 
     // ─── TOOL: read_line_range ──────────────────────────────────────────
-    const read_line_range = tool({
+        /**
+     * Reads a specific block of lines from a target file, clamped to file bounds.
+     */
+const read_line_range = tool({
         description: 'Read specific lines from a file. Use after read_file_skeleton to examine specific sections. Maximum 200 lines per call.',
         inputSchema: z.object({
             filePath: z.string().describe('Path to the file'),
