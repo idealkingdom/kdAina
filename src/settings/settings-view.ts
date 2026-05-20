@@ -9,6 +9,9 @@ import { outputChannel } from '../logger';
 import { ChatViewProvider } from '../chat/chat-view-provider';
 
 
+/**
+ * WebviewPanel provider that displays configuration settings forms.
+ */
 export class SettingsView {
     public static currentPanel: SettingsView | undefined;
     private readonly _panel: vscode.WebviewPanel;
