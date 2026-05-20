@@ -840,64 +840,8 @@ function appendFollowUpSuggestions(turnEl, responseText) {
 
     if (suggestions.length === 0) return;
 
-    // Build suggestions container
-    const suggestionsSection = document.createElement('div');
-    suggestionsSection.className = 'follow-up-suggestions-section';
-
-    let chipsHTML = '';
-    suggestions.forEach(q => {
-        chipsHTML += `
-            <button class="suggestion-chip" title="Click to send instantly · Shift+Click to edit">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="suggestion-icon"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                <span>${q}</span>
-            </button>
-        `;
-    });
-
-    suggestionsSection.innerHTML = `
-        <div class="suggestions-header">Suggested Follow-ups</div>
-        <div class="suggestions-container">
-            ${chipsHTML}
-        </div>
-    `;
-
-    // Hook up click listeners on each chip
-    suggestionsSection.querySelectorAll('.suggestion-chip').forEach(chip => {
-        chip.addEventListener('click', event => {
-            const text = chip.querySelector('span').textContent.trim();
-            if (!chatMessage) return;
-
-            chatMessage.innerText = text;
-            chatMessage.dispatchEvent(new Event('input', { bubbles: true }));
-            chatMessage.focus();
-
-            // Set caret to end of text
-            const range = document.createRange();
-            const sel = window.getSelection();
-            range.selectNodeContents(chatMessage);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
-
-            if (!event.shiftKey) {
-                // Instantly send
-                const sendBtn = document.getElementById('sendButton');
-                if (sendBtn && !sendBtn.classList.contains('disabled')) {
-                    sendBtn.click();
-                }
-            } else {
-                // Just scroll to it
-                chatMessage.scrollIntoView({ block: 'nearest' });
-            }
-        });
-    });
-
-    // Append to messageContent, before the footer
-    const currentFooter = messageContent.querySelector('.message-footer');
-    if (currentFooter) {
-        messageContent.insertBefore(suggestionsSection, currentFooter);
-    } else {
-        messageContent.appendChild(suggestionsSection);
+    if (typeof renderPromptSuggestions === 'function') {
+        renderPromptSuggestions(suggestions, "Suggested Follow-ups");
     }
 }
 

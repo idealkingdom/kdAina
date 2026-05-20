@@ -751,6 +751,77 @@ function getCurrentDate() {
     return now.toLocaleString('en-US', options);
 }
 
+function renderPromptSuggestions(suggestions, title = "") {
+    // 1. Remove any existing chips container
+    const existing = document.querySelector('.prompt-suggestion-chips');
+    if (existing) existing.remove();
+
+    if (!suggestions || suggestions.length === 0) return;
+
+    // 2. Create the chips container
+    const chipsContainer = document.createElement('div');
+    chipsContainer.className = 'prompt-suggestion-chips';
+
+    // 3. Add a header if specified
+    if (title) {
+        const header = document.createElement('div');
+        header.className = 'suggestions-header';
+        header.style.marginBottom = '6px';
+        header.style.fontSize = '10px';
+        header.style.fontWeight = '600';
+        header.style.textTransform = 'uppercase';
+        header.style.letterSpacing = '0.5px';
+        header.style.color = 'var(--vscode-descriptionForeground, rgba(255, 255, 255, 0.4))';
+        header.style.userSelect = 'none';
+        header.textContent = title;
+        chipsContainer.appendChild(header);
+    }
+
+    // 4. Create chip buttons
+    suggestions.forEach(text => {
+        const chip = document.createElement('button');
+        chip.className = 'suggestion-chip';
+        chip.title = "Click to send instantly · Shift+Click to edit";
+        chip.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="suggestion-icon" style="margin-right: 6px; vertical-align: middle; opacity: 0.7;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            <span>${escapeHtml(text)}</span>
+        `;
+        chip.addEventListener('click', (event) => {
+            const input = document.getElementById('messageInput');
+            if (input) {
+                input.innerText = text;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.focus();
+                
+                // Position caret at the end
+                const range = document.createRange();
+                const sel = window.getSelection();
+                range.selectNodeContents(input);
+                range.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+
+            chipsContainer.remove();
+
+            if (!event.shiftKey) {
+                // Instantly send
+                const sendBtn = document.getElementById('sendButton');
+                if (sendBtn && !sendBtn.classList.contains('disabled')) {
+                    sendBtn.click();
+                }
+            }
+        });
+        chipsContainer.appendChild(chip);
+    });
+
+    // 5. Insert chips above the input container
+    const editorWrapper = document.querySelector('.editor-wrapper');
+    if (editorWrapper) {
+        editorWrapper.insertBefore(chipsContainer, editorWrapper.querySelector('.unified-input-container'));
+    }
+}
+
 // Initialize send button state
 toggleSendButton("off");
 

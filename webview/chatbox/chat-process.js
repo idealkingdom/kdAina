@@ -432,6 +432,11 @@ window.addEventListener('DOMContentLoaded', () => {
         if (typeof toggleSendButton === 'function') {
             toggleSendButton("off");
         }
+        // Remove suggestions chips on typing if the input is not empty
+        if (input.innerText.trim() !== '') {
+            const existing = document.querySelector('.prompt-suggestion-chips');
+            if (existing) existing.remove();
+        }
         const text = input.innerText;
         const cursorPosition = getCaretPosition(input);
         const textBeforeCursor = text.substring(0, cursorPosition);

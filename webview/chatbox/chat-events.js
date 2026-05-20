@@ -378,40 +378,8 @@ window.addEventListener('message', event => {
                 if (generateBtn) generateBtn.classList.remove('loading');
 
                 const suggestions = message.suggestions || [];
-                if (suggestions.length > 0) {
-                    // Remove existing chips
-                    const existing = document.querySelector('.prompt-suggestion-chips');
-                    if (existing) existing.remove();
-
-                    const chipsContainer = document.createElement('div');
-                    chipsContainer.className = 'prompt-suggestion-chips';
-
-                    suggestions.forEach(text => {
-                        const chip = document.createElement('button');
-                        chip.className = 'suggestion-chip';
-                        chip.textContent = text;
-                        chip.addEventListener('click', () => {
-                            const input = document.getElementById('messageInput');
-                            if (input) {
-                                input.innerText = text;
-                                input.focus();
-                                const range = document.createRange();
-                                const sel = window.getSelection();
-                                range.selectNodeContents(input);
-                                range.collapse(false);
-                                sel.removeAllRanges();
-                                sel.addRange(range);
-                            }
-                            chipsContainer.remove();
-                        });
-                        chipsContainer.appendChild(chip);
-                    });
-
-                    // Insert chips above the input container
-                    const editorWrapper = document.querySelector('.editor-wrapper');
-                    if (editorWrapper) {
-                        editorWrapper.insertBefore(chipsContainer, editorWrapper.querySelector('.unified-input-container'));
-                    }
+                if (typeof renderPromptSuggestions === 'function') {
+                    renderPromptSuggestions(suggestions);
                 }
             }
             break;
