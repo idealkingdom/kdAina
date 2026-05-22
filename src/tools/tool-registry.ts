@@ -9,6 +9,9 @@ import { ApprovalService } from '../chat/approval-service';
 import { ReviewManager } from '../chat/review-manager';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { tool as _tool } from 'ai';
+const tool = _tool as any;
+import { z } from 'zod';
 
 export interface ToolRegistryOptions {
     chatId?: string;
@@ -21,6 +24,9 @@ export interface ToolRegistryOptions {
     /** Shared mutable counter — chat-core increments this, tool-registry reads it */
     stepBudget?: { current: number; max: number };
     enableBrowserTools?: boolean;
+    settings?: any;
+    isSubagent?: boolean;
+    onDelegateResearch?: (params: { agentName: string; prompt: string }) => Promise<any>;
 }
 
 /**
@@ -39,23 +45,45 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
 
     const browserTools = options?.enableBrowserTools !== false ? createBrowserTools() : {};
 
+    // Subagent tool
+    const delegateResearchTool = {
+        delegate_research: tool({
+            description: 'Delegates a specific sub-task or research query to another agent. This runs a sub-agent with its own system prompt and tools, and returns its final answer.',
+            inputSchema: z.object({
+                agentName: z.string().describe('The name of the agent to delegate to (e.g. "architect", "action")'),
+                prompt: z.string().describe('The instructions or research task for the subagent')
+            }),
+            execute: async (params: { agentName: string; prompt: string }) => {
+                if (options?.isSubagent) {
+                    return { error: 'Subagents are not allowed to call delegate_research recursively.' };
+                }
+                if (options?.onDelegateResearch) {
+                    return options.onDelegateResearch(params);
+                }
+                return { error: 'delegate_research is not configured in this context.' };
+            }
+        })
+    };
+
     const allTools = {
         ...fileTools,
         ...sysTools,
         ...webTools,
         ...cognitiveTools,
         ...artifactTools,
-        ...browserTools
+        ...browserTools,
+        ...delegateResearchTool
     };
 
-    const readTools = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'scrape_url', 'web_search', 'get_workspace_problems', 'read_artifact', 'list_background_processes', 'get_background_output'];
-    const writeTools = ['chunk_replace', 'create_file', 'manage_artifact'];
-    const commandTools = ['run_command', 'stop_background_process'];
-    // Browser interaction tools operate in an isolated sandbox — they should NOT go through shell
-    // command risk classification. They auto-approve; they don't execute system commands. (#79)
-    const browserInteractionTools = ['browser_action', 'browser_evaluate'];
+    // Tool categories keys
+    const fileToolsKeys = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'get_workspace_problems', 'chunk_replace', 'create_file', 'get_workspace_essence'];
+    const sysToolsKeys = ['run_command', 'stop_background_process', 'list_background_processes', 'get_background_output'];
+    const webToolsKeys = ['web_search', 'scrape_url'];
+    const cognitiveToolsKeys = ['plan_task', 'update_task_progress', 'verify_completion', 'delegate_research'];
+    const artifactToolsKeys = ['read_artifact', 'manage_artifact'];
+    const browserToolsKeys = ['browser_open', 'browser_snapshot', 'browser_action', 'browser_get', 'browser_evaluate', 'browser_close'];
 
-    // Wrap all execute functions
+    // Wrap all execute functions to apply settings controls & stepBudget increments
     Object.keys(allTools).forEach((key) => {
         const toolDef = (allTools as any)[key];
         const originalExecute = toolDef.execute;
@@ -65,48 +93,54 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
                 if (options?.abortSignal?.aborted) {
                     throw new Error('Request cancelled by user.');
                 }
-                let requireConfirmation = false;
+
+                // ─── RESOLVE TOOL PERMISSION FROM SETTINGS (TRI-STATE) ───
+                const toolsConfig = options?.settings?.tools || {};
+                let group: 'file_tools' | 'sys_tools' | 'web_tools' | 'cognitive_tools' | 'artifact_tools' | 'browser_tools' | null = null;
+                
+                if (fileToolsKeys.includes(key)) group = 'file_tools';
+                else if (sysToolsKeys.includes(key)) group = 'sys_tools';
+                else if (webToolsKeys.includes(key)) group = 'web_tools';
+                else if (cognitiveToolsKeys.includes(key)) group = 'cognitive_tools';
+                else if (artifactToolsKeys.includes(key)) group = 'artifact_tools';
+                else if (browserToolsKeys.includes(key)) group = 'browser_tools';
+
+                let mode: 'always' | 'ask' | 'off' = 'always';
+                if (group) {
+                    if (group === 'file_tools') {
+                        // File tools are locked to Always Proceed (always enabled)
+                        mode = 'always';
+                    } else {
+                        // Resolve from config or use defaults
+                        mode = toolsConfig[group] ?? (
+                            group === 'sys_tools' ? 'ask' :
+                            group === 'browser_tools' ? 'ask' : 'always'
+                        );
+                    }
+                }
+
+                if (mode === 'off') {
+                    return { error: `Tool '${key}' is disabled in settings. You must ask the user to enable it or find an alternative.` };
+                }
+
+                let requireConfirmation = (mode === 'ask');
                 let diffReviewRequired = false;
 
-                if (readTools.includes(key)) {
-                    requireConfirmation = options?.readFilesConfirmation ?? false;
-                } else if (writeTools.includes(key)) {
-                    requireConfirmation = options?.writeFilesConfirmation ?? true;
+                // Handle file writes requiring diff review regardless of mode, if they ask
+                const writeTools = ['chunk_replace', 'create_file', 'manage_artifact'];
+                if (writeTools.includes(key) && mode === 'ask') {
                     diffReviewRequired = true;
-                } else if (browserInteractionTools.includes(key)) {
-                    // #79: Browser tools run in an isolated sandbox — no shell risk classification.
-                    // Auto-approve; they don't execute system commands.
-                    requireConfirmation = false;
-                } else if (commandTools.includes(key)) {
-                    const mode = options?.commandSafetyMode || 'smart';
-                    if (mode === 'all') {
-                        requireConfirmation = true;
-                    } else if (mode === 'none') {
-                        requireConfirmation = false;
-                    } else {
-                        // smart or dangerous
-                        const risk = classifyCommandRisk(params?.command || '');
-                        if (risk === 'dangerous') {
-                            requireConfirmation = true;
-                        } else if (risk === 'moderate') {
-                            requireConfirmation = mode === 'smart';
-                        } else {
-                            // safe
-                            requireConfirmation = false;
-                        }
-                    }
-                    
-                    // Inject _autoApproved flag into params so sys-tools knows whether to apply ulimit
-                    if (!requireConfirmation) {
-                        (params as any)._autoApproved = true;
-                    } else {
-                        (params as any)._autoApproved = false;
-                    }
+                }
+
+                // Set command tools auto-approved flag
+                const commandTools = ['run_command', 'stop_background_process'];
+                if (commandTools.includes(key)) {
+                    (params as any)._autoApproved = !requireConfirmation;
                 }
 
                 if (requireConfirmation) {
                     if (diffReviewRequired) {
-                        // 1. Execute originally (This stages the changes in ReviewManager)
+                        // 1. Execute originally (stages the changes in ReviewManager)
                         const result = await originalExecute(params, { toolCallId });
                         
                         // 2. Notify frontend about the staged changes
@@ -116,7 +150,7 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
                         
                         return appendStepBudget(result, options?.stepBudget);
                     } else {
-                        // For non-diff tools (like run_command), we still block and wait for approval
+                        // For non-diff tools (like run_command), block and wait for approval
                         if (options?.onApprovalRequest) {
                             await options.onApprovalRequest(toolCallId, key, params, { diffReviewRequired });
                         }
