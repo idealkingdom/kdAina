@@ -760,6 +760,240 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                         }
                     }
                 }
+            },
+            onDelegateResearch: async (params: { agentName: string; prompt: string }) => {
+                outputChannel.appendLine(`[Agentic] Delegate research requested: agentName="${params.agentName}", prompt="${params.prompt}"`);
+                const targetAgent = FileConfigService.getInstance().getAgents().find(
+                    (a: any) => a.name.toLowerCase() === params.agentName.toLowerCase()
+                );
+                if (!targetAgent) {
+                    outputChannel.appendLine(`[Agentic] Subagent "${params.agentName}" not found.`);
+                    return { error: `Subagent "${params.agentName}" not found.` };
+                }
+
+                // Check if agent is active and not disabled/callable
+                if (targetAgent.active === false || targetAgent.callable === false) {
+                    outputChannel.appendLine(`[Agentic] Subagent "${params.agentName}" is disabled or not callable.`);
+                    return { error: `Subagent "${params.agentName}" is disabled or not callable.` };
+                }
+
+                // Use the agent's prompt template as system prompt
+                const subSystemPrompt = targetAgent.content || "You are an expert AI assistant.";
+
+                // Resolve and inject rules from FileConfigService
+                const subRules = FileConfigService.getInstance().getRules();
+                const subAllRules = subRules.filter(r => r.content.trim() !== '');
+                const subRulesSection = subAllRules.length > 0
+                    ? `\n\n--- APPLIED RULES ---\n${subAllRules.map(r => `[${r.name}]: ${r.content}`).join('\n')}\n`
+                    : '';
+
+                // Compact tree
+                await this.workspaceIndex.refresh();
+                const subFileTree = this.workspaceIndex.getCompactTreeString();
+                const subMaxTreeChars = 4000;
+                const subTruncatedTree = subFileTree.length > subMaxTreeChars
+                    ? subFileTree.substring(0, subMaxTreeChars) + '\n... (truncated, use list_workspace for full tree)'
+                    : subFileTree;
+
+                // Active editor
+                const subActiveEditorCtx = await this.workspaceIndex.getActiveEditorContext();
+                const subEditorSection = subActiveEditorCtx
+                    ? `\n--- ACTIVE EDITOR FILES ---\nThese files are currently open in the user's editor. You already have their skeletons and cursor positions. Do NOT re-read them with read_file_skeleton unless you need fresh data after an edit.\n${subActiveEditorCtx}\n`
+                    : '';
+
+                // Build agentic prompt
+                let subAgenticSystemPrompt = `${subSystemPrompt}
+
+${getSystemInfo()}
+--- WORKSPACE FILE TREE ---
+${subTruncatedTree}
+${subEditorSection}
+--- AGENT CONTEXT ---
+You have access to tools to read, search, and modify files in the user's workspace.
+Workspace root: ${workspaceRoot}
+
+PRIORITY: ALWAYS USE TOOLS. Your primary output mechanism is tool calls, not text.
+Respond with tool calls immediately — do not narrate, explain, or describe what you will do.
+
+STEP EFFICIENCY (each step = 1 API round-trip, budget is limited):
+- BATCH parallel tool calls: if you need to read 3 files, call all 3 in ONE step — not 3 separate steps.
+- For simple requests, act directly.
+- Skip tool calls for files you already have context for (active editor files above).
+- The active editor skeleton is already provided — do NOT re-read it with read_file_skeleton.
+- NEVER read an entire large file. Use skeleton first, then line ranges.
+
+WORKFLOW:
+1. Use list_workspace or find_symbol to understand the project structure
+2. Use read_file_skeleton to get an overview of relevant files
+3. Use read_line_range to examine specific sections you need
+4. Use chunk_replace to make surgical edits (provide exact target text)
+5. Use search_workspace to find patterns across the codebase
+6. Use get_workspace_problems to verify your changes
+7. Use run_command for builds, tests, git operations
+8. Use web_search to look up documentation, APIs, or current information online
+9. Call verify_completion at the END to confirm all items were addressed
+`;
+
+                if (settings.permissions?.enableBrowserTools !== false) {
+                    subAgenticSystemPrompt += `
+
+BROWSER TOOLS (for web testing & visual QA):
+- browser_open: Navigate to a URL in a real browser
+- browser_snapshot: Get the accessibility tree with refs (@e1, @e2) — this is your "eyes"
+- browser_action: Interact with elements (click, fill, type, select, hover, scroll, press)
+- browser_get: Extract text, HTML, values, page title, URL from the page
+- browser_evaluate: Run JavaScript in the page context
+- browser_close: Close the browser when done
+BROWSER WORKFLOW: open → snapshot → action → snapshot → verify → close
+ALWAYS snapshot before interacting. Use refs (@eN) from the LATEST snapshot only.
+For forms: use fill (clears input first), not type (appends). Re-snapshot after actions.`;
+                }
+
+                const subFinalSystemPrompt = subAgenticSystemPrompt + subRulesSection;
+
+                // Resolve model and provider for the subagent
+                const subModel = targetAgent.model || model;
+                const subActiveModelEntry = (settings.customModels || []).find((m: any) => m.name === subModel);
+                const subActiveProvider = subActiveModelEntry?.provider || activeProvider;
+                const subProviderConfig = settings.models?.providerSettings?.[subActiveProvider] || settings.models?.providerSettings?.[globalProvider];
+
+                let subApiKey = subActiveModelEntry?.apiKey || subProviderConfig?.apiKey || settings.models?.apiKey || '';
+                if (!subApiKey) {
+                    const sameProviderModels = (settings.customModels || []).filter((cm: any) => cm.provider === subActiveProvider && cm.apiKey);
+                    if (sameProviderModels.length > 0) {
+                        subApiKey = sameProviderModels[0].apiKey;
+                    }
+                }
+                if (!subApiKey) {
+                    subApiKey = apiKey; // Fallback to parent's API key
+                }
+
+                const subBaseUrl = subActiveModelEntry?.baseUrl || subProviderConfig?.baseUrl || baseUrl;
+                const subApiKeyHeader = subActiveModelEntry?.apiKeyHeader || apiKeyHeader;
+                const subAzureStyle = subActiveModelEntry?.azureStyle === true || azureStyle;
+                const subTemp = targetAgent.temperature ?? 0.15;
+                const subMaxSteps = targetAgent.stepBudget || 10;
+
+                let subSupportsReasoning = false;
+                try {
+                    const providers = FileConfigService.getInstance().getProviders();
+                    if (providers[subActiveProvider]?.supportsReasoning?.includes(subModel)) {
+                        subSupportsReasoning = true;
+                    }
+                } catch (e) {
+                    outputChannel.appendLine(`[Agentic] Error reading reasoning support for subagent: ${e}`);
+                }
+                if (!subSupportsReasoning && settings.customModels) {
+                    const customModel = settings.customModels.find((m: any) => m.name === subModel);
+                    if (customModel && customModel.supportsReasoning) {
+                        subSupportsReasoning = true;
+                    }
+                }
+
+                // Messages
+                const subMessages = [
+                    { role: 'system' as const, content: subFinalSystemPrompt },
+                    { role: 'user' as const, content: params.prompt }
+                ];
+
+                const subStepBudget = { current: 0, max: subMaxSteps };
+                const subTools = createToolRegistry(this.workspaceIndex, {
+                    chatId: data.chat_id,
+                    abortSignal: abortSignal,
+                    tier: modelTier,
+                    stepBudget: subStepBudget,
+                    settings: settings,
+                    readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
+                    writeFilesConfirmation: alwaysProceed ? false : (settings.permissions?.writeFilesConfirmation ?? true),
+                    commandSafetyMode: alwaysProceed ? 'none' : (settings.permissions?.commandSafetyMode ?? 'smart'),
+                    enableBrowserTools: settings.permissions?.enableBrowserTools !== false,
+                    isSubagent: true, // Block recursive delegate_research calls
+                    onApprovalRequest: async (toolCallId, toolName, args, opts) => {
+                        if (abortSignal?.aborted) return;
+                        if (onAgentStep) {
+                            onAgentStep({
+                                type: 'tool_call' as any,
+                                toolName,
+                                args,
+                                approvalRequired: true,
+                                diffReviewRequired: opts.diffReviewRequired,
+                                toolCallId
+                            } as any);
+
+                            if (opts.diffReviewRequired) {
+                                try {
+                                    await handleInlineReview(toolCallId, toolName, args);
+                                } catch (e) {
+                                    outputChannel.appendLine(`[Agentic] Failed to trigger Live Edit: ${e}`);
+                                }
+                            }
+                        }
+                    }
+                });
+
+                if (onAgentStep) {
+                    onAgentStep({
+                        type: 'thinking',
+                        text: `\n[Delegating to Subagent "${targetAgent.name}"]: "${params.prompt}"...\n`
+                    } as any);
+                }
+
+                try {
+                    let subStepCount = 0;
+                    const result = await aiAgenticRequest(
+                        subMessages, subModel, subApiKey, subTemp, subActiveProvider, subTools,
+                        {
+                            maxSteps: subMaxSteps,
+                            baseUrl: subBaseUrl,
+                            abortSignal: abortSignal,
+                            enableThinking: subSupportsReasoning,
+                            apiKeyHeader: subApiKeyHeader,
+                            azureStyle: subAzureStyle,
+                            modelTier: modelTier,
+                            onReasoningChunk: (text: string) => {
+                                if (onAgentStep && text) {
+                                    onAgentStep({ type: 'thinking', text });
+                                }
+                            },
+                            onStepFinish: (event: any) => {
+                                if (abortSignal?.aborted) return;
+                                subStepCount++;
+                                subStepBudget.current = subStepCount;
+                                if (event.toolCalls && event.toolCalls.length > 0) {
+                                    for (const tc of event.toolCalls) {
+                                        if (onAgentStep) {
+                                            onAgentStep({
+                                                type: 'tool_call' as any,
+                                                toolName: tc.toolName,
+                                                args: tc.args,
+                                                toolCallId: tc.toolCallId,
+                                                result: tc.result
+                                            } as any);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    );
+
+                    outputChannel.appendLine(`[Agentic] Subagent "${targetAgent.name}" completed successfully.`);
+                    if (onAgentStep) {
+                        onAgentStep({
+                            type: 'thinking',
+                            text: `\n[Subagent "${targetAgent.name}" finished research.]\n`
+                        } as any);
+                    }
+                    return { result: result.text };
+                } catch (e: any) {
+                    outputChannel.appendLine(`[Agentic] Subagent run failed: ${e}`);
+                    if (onAgentStep) {
+                        onAgentStep({
+                            type: 'thinking',
+                            text: `\n[Subagent "${targetAgent.name}" failed: ${e.message || e}]\n`
+                        } as any);
+                    }
+                    return { error: `Subagent run failed: ${e.message || e}` };
+                }
             }
         });
 
