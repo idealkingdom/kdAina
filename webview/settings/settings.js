@@ -592,6 +592,9 @@ window.addEventListener('DOMContentLoaded', () => {
             pill.addEventListener('click', () => {
                 cycleToolState(group);
             });
+            pill.addEventListener('animationend', () => {
+                pill.classList.remove('cycling');
+            });
         }
     });
 });
@@ -611,6 +614,14 @@ function cycleToolState(group) {
     currentSettings.tools[group] = nextVal;
     updateToolPillDOM(group, nextVal);
     persistSettings();
+
+    // Trigger micro-animation
+    const pill = document.getElementById(`btn-${group}`);
+    if (pill) {
+        pill.classList.remove('cycling');
+        void pill.offsetWidth; // trigger reflow
+        pill.classList.add('cycling');
+    }
 }
 
 function updateToolPillDOM(group, val) {
