@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
 
 export interface FileEntry {
     path: string;
@@ -48,6 +49,20 @@ export class WorkspaceIndexService {
     /** Cache of file skeletons so repeated read_file_skeleton calls are free */
     private skeletonCache = new Map<string, { skeleton: string; totalLines: number; mtime: number }>();
 
+    // ─── ESSENCE CACHE ─────────────────────────────────────────────────
+    /** Max characters per essence file to inject into the context window */
+    private static readonly MAX_ESSENCE_CHARS = 8000;
+
+    private essenceCache: {
+        blueprint: string | null;
+        skill: string | null;
+        hasBlueprint: boolean;
+        hasSkill: boolean;
+        lastUpdated: number;
+    } = { blueprint: null, skill: null, hasBlueprint: false, hasSkill: false, lastUpdated: 0 };
+
+    private essenceWatcher: vscode.FileSystemWatcher | undefined;
+
     private constructor() {
         // Auto-refresh on file changes
         this.disposables.push(
@@ -55,6 +70,131 @@ export class WorkspaceIndexService {
             vscode.workspace.onDidDeleteFiles(() => this.refresh()),
             vscode.workspace.onDidRenameFiles(() => this.refresh())
         );
+
+        // Watch for blueprint.md / skill.md changes reactively
+        this.initEssenceWatcher();
+    }
+
+    /**
+     * Watch for creation, modification, or deletion of blueprint.md and skill.md.
+     * Fires onDidUpdate so the webview receives an updated essence status.
+     */
+    private initEssenceWatcher(): void {
+        const folder = vscode.workspace.workspaceFolders?.[0];
+        if (!folder) {
+            return;
+        }
+        // Watch .kdaina/artifacts/global/ for blueprint.md and skill.md
+        const pattern = new vscode.RelativePattern(
+            folder,
+            '.kdaina/artifacts/global/{blueprint.md,skill.md}'
+        );
+        this.essenceWatcher = vscode.workspace.createFileSystemWatcher(pattern);
+
+        const handler = async () => {
+            await this.refreshEssenceCache();
+            // Re-fire update so listeners (extension.ts) push new status to webview
+            this._onDidUpdate.fire(this.index.fileTree.length);
+        };
+        this.essenceWatcher.onDidCreate(handler);
+        this.essenceWatcher.onDidChange(handler);
+        this.essenceWatcher.onDidDelete(handler);
+        this.disposables.push(this.essenceWatcher);
+    }
+
+    /**
+     * Re-read blueprint.md and skill.md into the in-memory cache (async).
+     */
+    public async refreshEssenceCache(): Promise<void> {
+        const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!root) {
+            this.essenceCache = { blueprint: null, skill: null, hasBlueprint: false, hasSkill: false, lastUpdated: Date.now() };
+            return;
+        }
+        const fsPromises = fs.promises;
+        const artifactsDir = path.join(root, '.kdaina', 'artifacts', 'global');
+
+        const readSafe = async (filePath: string): Promise<string | null> => {
+            try {
+                return await fsPromises.readFile(filePath, 'utf8');
+            } catch {
+                return null;
+            }
+        };
+
+        const [blueprint, skill] = await Promise.all([
+            readSafe(path.join(artifactsDir, 'blueprint.md')),
+            readSafe(path.join(artifactsDir, 'skill.md'))
+        ]);
+
+        this.essenceCache = {
+            blueprint,
+            skill,
+            hasBlueprint: blueprint !== null,
+            hasSkill: skill !== null,
+            lastUpdated: Date.now()
+        };
+    }
+
+    public getEssenceStatus(): { isProject: boolean; hasBlueprint: boolean; hasSkill: boolean; needsEssence: boolean } {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        const isProject = !!workspaceFolders && workspaceFolders.length > 0;
+        if (!isProject) {
+            return { isProject: false, hasBlueprint: false, hasSkill: false, needsEssence: false };
+        }
+
+        const root = workspaceFolders[0].uri.fsPath;
+        const hasGit = fs.existsSync(path.join(root, '.git'));
+
+        const manifestNames = [
+            'package.json', 'Cargo.toml', 'go.mod', 'pyproject.toml', 'requirements.txt',
+            'setup.py', 'Gemfile', 'composer.json', 'build.gradle', 'pom.xml', 'CMakeLists.txt',
+            'Makefile', 'mix.exs'
+        ];
+
+        // 1. Direct filesystem check for root manifests (100% reliable, independent of indexer exclusions/warmup)
+        const hasRootManifest = manifestNames.some(name => fs.existsSync(path.join(root, name)));
+
+        // 2. Indexer check for monorepos or nested subfolders
+        const hasNestedManifest = this.index.fileTree.some(file => {
+            const parts = file.relativePath.split(/[\\/]/);
+            const fileName = parts[parts.length - 1];
+            // Only consider it a project manifest if it's at the root level or 1 level deep
+            return parts.length <= 2 && manifestNames.includes(fileName);
+        });
+
+        return {
+            isProject: true,
+            hasBlueprint: this.essenceCache.hasBlueprint,
+            hasSkill: this.essenceCache.hasSkill,
+            needsEssence: hasGit || hasRootManifest || hasNestedManifest
+        };
+    }
+
+    /**
+     * Returns context string for injecting into the system prompt.
+     * Token-safe: each file is capped at MAX_ESSENCE_CHARS (~2000 tokens).
+     * Uses cached content — no synchronous I/O.
+     */
+    public getEssenceContext(): string {
+        let context = '';
+        const maxChars = WorkspaceIndexService.MAX_ESSENCE_CHARS;
+
+        if (this.essenceCache.blueprint) {
+            const content = this.essenceCache.blueprint.length > maxChars
+                ? this.essenceCache.blueprint.substring(0, maxChars) + '\n... (truncated — full file is ' + this.essenceCache.blueprint.length + ' chars)'
+                : this.essenceCache.blueprint;
+            context += `\n\n--- WORKSPACE BLUEPRINT (blueprint.md) ---\n${content}\n`;
+        }
+
+        if (this.essenceCache.skill) {
+            const content = this.essenceCache.skill.length > maxChars
+                ? this.essenceCache.skill.substring(0, maxChars) + '\n... (truncated — full file is ' + this.essenceCache.skill.length + ' chars)'
+                : this.essenceCache.skill;
+            context += `\n\n--- WORKSPACE SKILLS (skill.md) ---\n${content}\n`;
+        }
+
+        return context;
     }
 
     /**
@@ -191,6 +331,10 @@ public async refresh(currentChatId?: string): Promise<void> {
             .sort((a, b) => a.relativePath.localeCompare(b.relativePath));
 
         this.index.lastUpdated = Date.now();
+
+        // Seed/refresh essence cache alongside the file index
+        await this.refreshEssenceCache();
+
         this._onDidUpdate.fire(this.index.fileTree.length);
     }
 
@@ -322,6 +466,13 @@ public async refresh(currentChatId?: string): Promise<void> {
      */
     public getFileList(): string[] {
         return this.index.fileTree.map(f => f.relativePath);
+    }
+
+    /**
+     * Get the full FileEntry objects (path, relativePath, size, language)
+     */
+    public getFileEntries(): FileEntry[] {
+        return this.index.fileTree;
     }
 
     // ─── SKELETON CACHE ────────────────────────────────────────────────
