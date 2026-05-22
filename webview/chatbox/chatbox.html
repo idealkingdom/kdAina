@@ -49,6 +49,15 @@
 
 <body>
 
+  <!-- Premium Splash Screen -->
+  <div id="splash-screen" class="splash-overlay">
+    <div class="splash-content">
+      <img src="{{LOGO_URI}}" class="splash-logo" alt="kdAina Logo" />
+      <div class="splash-loader"></div>
+      <div class="splash-text">kdAina</div>
+    </div>
+  </div>
+
   <div id="chat-view" class="view-container active-view">
     <div class="chat-container new-chat">
       <main id="chatLog" data-chat-id="" class="chat-log">
@@ -260,10 +269,17 @@
     <main id="history-list-container" class="history-list-container">
     </main>
   </div>
-
-
-
-
+  <!-- Undo Warning Modal -->
+  <div id="confirm-modal" class="confirm-modal-overlay">
+    <div class="confirm-modal-box">
+      <h3 class="modal-title">Undo Message?</h3>
+      <p class="modal-body">This will copy the message text to the chatbox, undo all pending code changes, and delete all messages after this point.</p>
+      <div class="modal-footer">
+        <button id="confirm-modal-cancel" class="modal-btn secondary">Cancel</button>
+        <button id="confirm-modal-confirm" class="modal-btn danger">Confirm</button>
+      </div>
+    </div>
+  </div>
 
 </body>
 

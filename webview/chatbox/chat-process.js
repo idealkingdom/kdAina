@@ -68,6 +68,13 @@ function resetChat(content) {
     attachedImages = [];
     attachedFiles = [];
     renderAttachments();
+
+    // Reset token usage display
+    const tokenPill = document.getElementById('count-tokens');
+    if (tokenPill) {
+        tokenPill.textContent = '0';
+    }
+
     chatWelcomeMessage.classList.remove('hidden');
     document.querySelector('.chat-container').classList.add('new-chat');
     showChatView(); // Make sure we're on the chat view
@@ -82,179 +89,84 @@ function resetChat(content) {
 
 
 
+let currentUndoButton = null;
+
 /**
- * Retry: keep the user message, remove only all AI messages following it.
+ * Undo: open a warning confirmation modal before proceeding.
  */
-function retryLastMessage(btn) {
-    const userMsgEl = btn ? btn.closest('.user-message') : null;
-    const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
-
-    // Determine where to start removing AI messages
-    let startIdx = -1;
-    let targetUserMsg = userMsgEl;
-    if (targetUserMsg) {
-        startIdx = allMessages.indexOf(targetUserMsg) + 1;
-    } else {
-        // Fallback for non-button invocation (e.g. command palette)
-        // Find the LAST user message in the chat
-        const reversed = [...allMessages].reverse();
-        targetUserMsg = reversed.find(el => el.classList.contains('user-message'));
-        startIdx = targetUserMsg ? allMessages.indexOf(targetUserMsg) + 1 : allMessages.length - 1;
+function undoMessage(btn) {
+    currentUndoButton = btn;
+    const modal = document.getElementById('confirm-modal');
+    if (modal) {
+        modal.classList.add('active');
     }
-
-    // Calculate precise userMsgIdx for robust backend deletion
-    const allUserMessages = Array.from(chatbox.querySelectorAll('.user-message'));
-    const userMsgIdx = targetUserMsg ? allUserMessages.indexOf(targetUserMsg) : allUserMessages.length - 1;
-
-    if (startIdx <= 0 || startIdx > allMessages.length) { return; }
-
-    // Count system-messages (AI responses) after this user message
-    const messagesAfter = allMessages.length - startIdx;
-    // Minimum count is 2: the user message itself + at least 1 bot response (even if empty/error)
-    const removedCount = Math.max(2, messagesAfter + 1);
-
-    // Blast away all DOM nodes that come after targetUserMsg
-    if (targetUserMsg) {
-        let wrapper = targetUserMsg.closest('.user-message-wrapper') || targetUserMsg;
-        let turnDiv = wrapper.closest('.chat-turn') || wrapper;
-
-        // 1. Remove all siblings after the user message inside the turnDiv
-        let nextNode = wrapper.nextSibling;
-        while (nextNode) {
-            const toRemove = nextNode;
-            nextNode = nextNode.nextSibling;
-            toRemove.remove();
-        }
-
-        // 2. Remove all subsequent turnDivs
-        let nextTurn = turnDiv.nextSibling;
-        while (nextTurn) {
-            const toRemove = nextTurn;
-            nextTurn = nextTurn.nextSibling;
-            toRemove.remove();
-        }
-    } else {
-        for (let i = startIdx; i < allMessages.length; i++) {
-            allMessages[i].remove();
-        }
-    }
-
-    showLoadingIndicator();
-    toggleSendButton('disabled');
-    sendMessage(CHAT_COMMANDS.CHAT_RETRY, {
-        chat_id: chatLog.dataset.chatId,
-        count: removedCount,
-        userMsgIdx: userMsgIdx >= 0 ? userMsgIdx : undefined,
-        agentId: activeAgentId
-    });
 }
 
 /**
- * Edit: swap user message bubble with an inline editable textarea.
- * On cancel, restore the original bubble.
+ * Execute the undo: copy message to input box, discard workspace changes, truncate DB.
  */
-function editUserMessage(btn) {
+function executeUndo(btn) {
     const userMsgEl = btn.closest('.user-message');
+    if (!userMsgEl) return;
+
     const rawText = decodeURIComponent(userMsgEl.dataset.rawText || '');
 
     // Find exact user message index for robust backend deletion
     const allUserMessages = Array.from(chatbox.querySelectorAll('.user-message'));
     const userMsgIdx = allUserMessages.indexOf(userMsgEl);
 
-    // Count formal AI/user messages for the legacy backend history trim
-    const allMessages = Array.from(chatbox.querySelectorAll('.user-message, .system-message'));
-    const startIdx = allMessages.indexOf(userMsgEl);
-    const messagesAfter = allMessages.slice(startIdx + 1);
-    const removedCount = messagesAfter.length + 1; // +1 = the user msg itself for history delete
-
-    // Blast away all DOM nodes that come after userMsgEl
+    // Blast away all DOM nodes that come after and include targetUserMsg
     let wrapper = userMsgEl.closest('.user-message-wrapper') || userMsgEl;
     let turnDiv = wrapper.closest('.chat-turn') || wrapper;
 
-    let removedNodes = [];
-
-    // 1. Remove siblings inside the turn
+    // 1. Remove all siblings after the user message inside the turnDiv
     let nextNode = wrapper.nextSibling;
     while (nextNode) {
         const toRemove = nextNode;
         nextNode = nextNode.nextSibling;
-        removedNodes.push({ parent: turnDiv, node: toRemove });
         toRemove.remove();
     }
 
-    // 2. Remove subsequent turns
+    // 2. Remove all subsequent turnDivs
     let nextTurn = turnDiv.nextSibling;
     while (nextTurn) {
         const toRemove = nextTurn;
         nextTurn = nextTurn.nextSibling;
-        removedNodes.push({ parent: chatbox, node: toRemove });
         toRemove.remove();
     }
 
-    // Swap the text span for a textarea, IN-PLACE inside the existing bubble
-    const textSpan = userMsgEl.querySelector('.message-text');
-    const footer = userMsgEl.querySelector('.message-footer');
-    const actionsDiv = userMsgEl.querySelector('.user-message-actions');
+    // 3. Remove the turnDiv itself
+    turnDiv.remove();
 
-    // Build textarea to replace text span
-    const ta = document.createElement('textarea');
-    ta.className = 'edit-textarea';
-    ta.value = rawText;
-    ta.rows = Math.max(2, rawText.split('\n').length);
-    textSpan.replaceWith(ta);
-    ta.focus();
-    ta.setSelectionRange(ta.value.length, ta.value.length);
-
-    // Auto-grow helper (fallback for browsers without field-sizing support)
-    function autoGrow() {
-        ta.style.height = 'auto';
-        ta.style.height = Math.min(ta.scrollHeight, 220) + 'px';
+    // If chat is empty, show welcome message
+    if (chatbox.children.length === 0 && chatWelcomeMessage) {
+        chatWelcomeMessage.classList.remove('hidden');
+        const chatContainer = document.querySelector('.chat-container');
+        if (chatContainer) chatContainer.classList.add('new-chat');
     }
-    ta.addEventListener('input', () => {
-        autoGrow();
-        sendBtn.disabled = !ta.value.trim();
+
+    // Copy text to input box
+    chatMessage.innerText = rawText;
+    chatMessage.focus();
+
+    // Move caret to end of input box
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(chatMessage);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    // Trigger input event to resize/toggle send button
+    if (typeof toggleSendButton === 'function') {
+        toggleSendButton("off"); // enables send button if text is present
+    }
+
+    // Send message to backend to delete from database and discard all pending workspace changes
+    sendMessage(CHAT_COMMANDS.CHAT_UNDO, {
+        chat_id: chatLog.dataset.chatId,
+        userMsgIdx: userMsgIdx >= 0 ? userMsgIdx : undefined
     });
-    autoGrow(); // run once on init
-
-    // Swap action buttons to Cancel/Send
-    const originalActionsHTML = actionsDiv.innerHTML;
-    actionsDiv.innerHTML = `
-        <button class="edit-cancel-btn">Cancel</button>
-        <button class="edit-send-btn" ${!rawText.trim() ? 'disabled' : ''}>Send</button>`;
-
-    const sendBtn = actionsDiv.querySelector('.edit-send-btn');
-
-    // Cancel: restore everything, put back AI messages
-    actionsDiv.querySelector('.edit-cancel-btn').addEventListener('click', () => {
-        ta.replaceWith(textSpan);
-        actionsDiv.innerHTML = originalActionsHTML;
-        // Re-attach action button listeners (onclick attributes are restored via innerHTML)
-        removedNodes.forEach(item => item.parent.appendChild(item.node));
-    });
-
-    // Send: update bubble text, remove AI history, re-submit
-    sendBtn.addEventListener('click', () => {
-        const newText = ta.value.trim();
-        if (!newText) { return; }
-
-        // Restore bubble to display mode with updated text
-        textSpan.innerHTML = escapeHtml(newText).replace(/\n/g, '<br>');
-        ta.replaceWith(textSpan);
-        userMsgEl.dataset.rawText = encodeURIComponent(newText);
-        actionsDiv.innerHTML = originalActionsHTML;
-
-        showLoadingIndicator();
-        toggleSendButton('disabled');
-        sendMessage(CHAT_COMMANDS.CHAT_RETRY, {
-            chat_id: chatLog.dataset.chatId,
-            count: removedCount,
-            userMsgIdx: userMsgIdx >= 0 ? userMsgIdx : undefined,
-            overrideMessage: newText,
-            agentId: activeAgentId
-        });
-    });
-
-    scrollToBottom();
 }
 
 
@@ -328,12 +240,26 @@ sendButton.addEventListener("click", event => {
     // Combine inline files and externally attached files (if any still use the old method)
     const allFiles = attachedFiles.concat(dynamicAttachedFiles);
 
-    // Update Condition: Check for files too
-    if (messageText || dynamicAttachedImages.length > 0 || allFiles.length > 0) {
+    const blueprintChip = document.querySelector('.essence-suggestion-chip[data-file-id="blueprint"]');
+    const skillChip = document.querySelector('.essence-suggestion-chip[data-file-id="skill"]');
+    const createBlueprint = blueprintChip ? blueprintChip.classList.contains('selected') : false;
+    const createSkill = skillChip ? skillChip.classList.contains('selected') : false;
+
+    // Build a visible display message when only essence chips are selected
+    let displayMessage = messageText;
+    if (!displayMessage && (createBlueprint || createSkill)) {
+        const parts = [];
+        if (createBlueprint) parts.push('blueprint.md');
+        if (createSkill) parts.push('skill.md');
+        displayMessage = `Create ${parts.join(' and ')}`;
+    }
+
+    // Update Condition: Check for files and essence selections too
+    if (messageText || dynamicAttachedImages.length > 0 || allFiles.length > 0 || createBlueprint || createSkill) {
 
         // --- PREPARE PAYLOAD ---
         const payload = {
-            message: messageText,
+            message: displayMessage,
             images: dynamicAttachedImages,
 
             // CRITICAL: Send the attached files to the backend
@@ -342,7 +268,10 @@ sendButton.addEventListener("click", event => {
             agentId: activeAgentId,
 
             chat_id: chatLog.dataset.chatId,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+
+            createBlueprint: createBlueprint,
+            createSkill: createSkill
         };
 
         // --- SEND ---
@@ -354,6 +283,12 @@ sendButton.addEventListener("click", event => {
         toggleSendButton("disabled");
 
         chatMessage.innerHTML = "";
+
+        // Remove essence suggestions container immediately
+        const suggestionsContainer = document.querySelector('.essence-suggestions-container');
+        if (suggestionsContainer) {
+            suggestionsContainer.remove();
+        }
 
         // Clear files array
         attachedFiles = [];
@@ -391,6 +326,28 @@ function processMessageContent(rawText) {
 window.addEventListener('DOMContentLoaded', () => {
     sendMessage("ChatWebviewReady");
     initGenerateButton();
+
+    // Initialize Undo Warning Modal buttons
+    const modal = document.getElementById('confirm-modal');
+    const cancelBtn = document.getElementById('confirm-modal-cancel');
+    const confirmBtn = document.getElementById('confirm-modal-confirm');
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            if (modal) modal.classList.remove('active');
+            currentUndoButton = null;
+        });
+    }
+    
+    if (confirmBtn) {
+        confirmBtn.addEventListener('click', () => {
+            if (modal) modal.classList.remove('active');
+            if (currentUndoButton) {
+                executeUndo(currentUndoButton);
+                currentUndoButton = null;
+            }
+        });
+    }
 
     const input = document.getElementById("messageInput");
 
@@ -437,6 +394,8 @@ window.addEventListener('DOMContentLoaded', () => {
             const existing = document.querySelector('.prompt-suggestion-chips');
             if (existing) existing.remove();
         }
+
+
         const text = input.innerText;
         const cursorPosition = getCaretPosition(input);
         const textBeforeCursor = text.substring(0, cursorPosition);
