@@ -1,0 +1,1 @@
+When starting long-running background processes (like 'npm run dev', 'npx vite', or any command with '&'), ALWAYS redirect both stdout and stderr to a log file (e.g., '> server.log 2>&1 &'). Immediately after starting the process, read the log file to verify the actual port it bound to and ensure it started successfully before proceeding.
