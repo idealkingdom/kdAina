@@ -1,0 +1,24 @@
+name: OpenAI
+baseUrl: https://api.openai.com/v1
+models:
+  text:
+    - gpt-5.2-pro
+    - gpt-5.2
+    - gpt-5
+    - gpt-5-mini
+    - gpt-5-nano
+  image:
+    - gpt-5.2-pro
+    - gpt-5.2
+    - gpt-5
+    - gpt-5-mini
+supportsReasoning:
+  - gpt-5.2-pro
+  - gpt-5.2
+  - gpt-5
+tiers:
+  gpt-5.2-pro: frontier
+  gpt-5.2: frontier
+  gpt-5: frontier
+  gpt-5-mini: mid
+  gpt-5-nano: small
