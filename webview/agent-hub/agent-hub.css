@@ -14,16 +14,16 @@
   --hub-input-fg: var(--vscode-input-foreground, #cccccc);
   --hub-input-border: var(--vscode-input-border, #555555);
   --hub-focus: var(--vscode-focusBorder, #007acc);
-  --hub-accent: #4facfe;
-  --hub-accent-2: #00f2fe;
-  --hub-success: #4ec9b0;
-  --hub-warning: #ddb56e;
-  --hub-error: #f14c4c;
+  --hub-accent: var(--vscode-button-background, #3e3e3e);
+  --hub-accent-hover: var(--vscode-button-hoverBackground, #4e4e4e);
+  --hub-success: var(--vscode-testing-iconPassed, #4ec9b0);
+  --hub-warning: var(--vscode-testing-iconQueued, #ddb56e);
+  --hub-error: var(--vscode-errorForeground, #f14c4c);
   --hub-font: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
   --hub-font-mono: var(--vscode-editor-font-family, "Fira Mono", "Menlo", monospace);
   --hub-radius: 8px;
   --hub-radius-sm: 5px;
-  --hub-transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --hub-transition: 0.15s ease;
 }
 
 /* ─── RESET & BASE ────────────────────────────────────────────────────── */
@@ -80,10 +80,7 @@ body {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.3px;
-  background: linear-gradient(135deg, var(--hub-accent-2), var(--hub-accent));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--hub-text);
 }
 
 .hub-tabs {
@@ -129,7 +126,11 @@ body {
   padding: 24px;
 }
 
-.hub-panel { display: none; }
+.hub-panel {
+  display: none;
+  max-width: 800px;
+  margin: 0 auto;
+}
 .hub-panel.active { display: block; }
 
 .section-title {
@@ -195,13 +196,12 @@ body {
 }
 
 .hub-btn.primary {
-  background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent-2));
-  color: #0a0a0a;
+  background: var(--vscode-button-background, #3e3e3e);
+  color: var(--vscode-button-foreground, #ffffff);
+  border: 1px solid var(--vscode-button-border, #555555);
 }
 .hub-btn.primary:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(79,172,254,0.3);
+  background: var(--vscode-button-hoverBackground, #4e4e4e);
 }
 
 .hub-btn.secondary {
@@ -738,9 +738,7 @@ body {
 }
 
 .agent-card:hover {
-  border-color: rgba(79,172,254,0.3);
-  box-shadow: 0 4px 16px rgba(79,172,254,0.08);
-  transform: translateY(-1px);
+  border-color: var(--vscode-focusBorder, #007acc);
 }
 
 .agent-card-top {
@@ -763,11 +761,12 @@ body {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: linear-gradient(135deg, rgba(79,172,254,0.15), rgba(0,242,254,0.15));
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--hub-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--hub-accent);
+  color: var(--hub-text);
   flex-shrink: 0;
 }
 
@@ -832,12 +831,12 @@ body {
 }
 
 .agent-toggle input:checked + .agent-toggle-slider {
-  background: rgba(79,172,254,0.25);
+  background: var(--vscode-button-background, #3e3e3e);
 }
 
 .agent-toggle input:checked + .agent-toggle-slider::before {
   transform: translateX(16px);
-  background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent-2));
+  background: var(--vscode-button-foreground, #ffffff);
 }
 
 /* ─── AGENT TEMPERATURE SLIDER ────────────────────────────────────────── */
@@ -860,45 +859,41 @@ body {
 
 .agent-temp-slider {
   flex: 1;
-  height: 4px;
+  height: 2px;
   -webkit-appearance: none;
   appearance: none;
-  background: rgba(255,255,255,0.1);
-  border-radius: 2px;
+  background: var(--vscode-settings-numberInputBorder, #454545);
   outline: none;
   cursor: pointer;
 }
 
 .agent-temp-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent-2));
+  width: 6px;
+  height: 12px;
+  background: var(--vscode-settings-textInputForeground, #cccccc);
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
-  transition: transform 0.15s ease;
+  border: 1px solid var(--vscode-settings-numberInputBorder, #454545);
+  transition: background 0.15s ease;
 }
 
 .agent-temp-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.2);
+  background: var(--vscode-focusBorder, #007acc);
 }
 
 .agent-temp-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: none;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent-2));
+  width: 6px;
+  height: 12px;
+  background: var(--vscode-settings-textInputForeground, #cccccc);
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  border: 1px solid var(--vscode-settings-numberInputBorder, #454545);
 }
 
 .agent-temp-value {
   font-size: 11px;
   font-family: var(--hub-font-mono);
-  color: var(--hub-accent);
-  font-weight: 600;
+  color: var(--vscode-settings-textInputForeground, #cccccc);
+  font-weight: 500;
   min-width: 30px;
   text-align: right;
   flex-shrink: 0;
@@ -1219,15 +1214,13 @@ body {
 }
 
 .modal-btn.primary {
-    background: linear-gradient(135deg, var(--hub-accent), var(--hub-accent-2));
-    color: #0a0a0a;
-    border: none;
+    background: var(--vscode-button-background, #3e3e3e);
+    color: var(--vscode-button-foreground, #ffffff);
+    border: 1px solid var(--vscode-button-border, #555555);
 }
 
 .modal-btn.primary:hover {
-    filter: brightness(1.1);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3);
+    background: var(--vscode-button-hoverBackground, #4e4e4e);
 }
 
 .modal-btn.secondary {
