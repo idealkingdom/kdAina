@@ -21,12 +21,17 @@ import { ReviewCodeLensProvider, ReviewDecorationProvider } from './chat/review-
 import { PopupManager } from './chat/popup-manager';
 import { AgentHubView } from './agent-hub/agent-hub-view';
 
+import { FileConfigService } from './services/file-config-service';
+
 // editor
 const editor = vscode.window.activeTextEditor;
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
+    // Initialize FileConfigService
+    FileConfigService.getInstance().initialize(context);
+
     // 1. Initialize Logging
     // show the extension output channel
     outputChannel.show();
@@ -74,6 +79,13 @@ export function activate(context: vscode.ExtensionContext) {
         provider.postMessage({
             command: 'indexUpdate',
             content: { fileCount: count, lastUpdated: new Date().toISOString() }
+        });
+
+        // Also push essence status (uses cached values — no I/O)
+        const wsIndex = WorkspaceIndexService.getInstance();
+        provider.postMessage({
+            command: 'essenceStatus',
+            content: wsIndex.getEssenceStatus()
         });
     });
 
@@ -152,6 +164,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // 5. Register Review Manager Commands — #43 Direct-Write Model
     const reviewManager = ReviewManager.getInstance();
+    reviewManager.initialize(context);
 
     // Helper: sync review state from ReviewManager → chatbox webview
     const syncReviewToWebview = async () => {
@@ -200,6 +213,24 @@ export function activate(context: vscode.ExtensionContext) {
             await reviewManager.revertEdit(uriStr, editIndex);
             vscode.window.showInformationMessage('Change reverted.');
             await syncReviewToWebview();
+        }),
+        vscode.commands.registerCommand('kdaina.openDiff', async (uriStr: string) => {
+            const fileUri = vscode.Uri.parse(uriStr);
+            const pendingEdits = reviewManager.getPendingEdits(uriStr);
+            if (pendingEdits && pendingEdits.length > 0) {
+                const originalUri = fileUri.with({ scheme: DiffContentProvider.scheme });
+                const originalContent = reviewManager.getOriginalContent(fileUri) ?? '';
+                DiffContentProvider.getInstance().updateContent(originalUri, originalContent);
+                
+                await vscode.commands.executeCommand(
+                    'vscode.diff',
+                    originalUri,
+                    fileUri,
+                    `${path.basename(fileUri.fsPath)} (Review Changes)`
+                );
+            } else {
+                await vscode.window.showTextDocument(fileUri);
+            }
         }),
         vscode.commands.registerCommand('kdaina.acceptAll', async (uriStr?: string) => {
             if (uriStr) {
