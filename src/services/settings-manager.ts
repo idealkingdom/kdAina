@@ -49,7 +49,15 @@ export const DEFAULT_SETTINGS: AppSettings = (() => {
             commandSafetyMode: 'smart',
             alwaysProceed: false,
             enableTerminalSandbox: false,
-            enableBrowserTools: true
+            enableBrowserTools: true,
+            newChatSessionPlacement: 'window'
+        },
+        tools: {
+            sys_tools: 'ask',
+            web_tools: 'always',
+            cognitive_tools: 'always',
+            artifact_tools: 'always',
+            browser_tools: 'ask'
         },
         ui: {
             sidebarPosition: 'right',
@@ -243,7 +251,8 @@ export class SettingsManager {
             prompts: finalPrompts,
             customTemplates: stored.customTemplates || [],
             customModels: stored.customModels || [],
-            rules: finalRules
+            rules: finalRules,
+            tools: { ...DEFAULT_SETTINGS.tools, ...stored.tools }
         };
 
         // Migration from runCommandsConfirmation to commandSafetyMode
