@@ -19,7 +19,8 @@ let currentSettings = {
         commandSafetyMode: 'smart',
         alwaysProceed: false,
         enableTerminalSandbox: false,
-        enableBrowserTools: true
+        enableBrowserTools: true,
+        newChatSessionPlacement: 'window'
     },
     ui: {
         fontFamily: '',
@@ -144,6 +145,7 @@ const contextModeToggle = document.getElementById('contextModeToggle');
 const enableTerminalSandboxToggle = document.getElementById('enableTerminalSandbox');
 const enableBrowserToolsToggle = document.getElementById('enableBrowserTools');
 const enableSuggestionsToggle = document.getElementById('enableSuggestions');
+const newChatSessionPlacementInput = document.getElementById('newChatSessionPlacement');
 let isKeyVisible = false;
 
 // External media toggle handler
@@ -170,6 +172,19 @@ if (commandSafetyMode) {
         vscode.postMessage({
             command: 'saveSetting',
             data: { category: 'permissions', key: 'commandSafetyMode', value: e.target.value }
+        });
+    });
+}
+
+if (newChatSessionPlacementInput) {
+    newChatSessionPlacementInput.addEventListener('change', (e) => {
+        if (!currentSettings.permissions) currentSettings.permissions = {};
+        currentSettings.permissions.newChatSessionPlacement = e.target.value;
+        persistSettings();
+        
+        vscode.postMessage({
+            command: 'saveSetting',
+            data: { category: 'permissions', key: 'newChatSessionPlacement', value: e.target.value }
         });
     });
 }
@@ -568,7 +583,48 @@ window.addEventListener('DOMContentLoaded', () => {
     if (themeTemplateSelect) {
         updateTemplateDropdown();
     }
+
+    // Initialize tool status pills event listeners
+    const toolGroups = ['sys_tools', 'web_tools', 'cognitive_tools', 'artifact_tools', 'browser_tools'];
+    toolGroups.forEach(group => {
+        const pill = document.getElementById(`btn-${group}`);
+        if (pill) {
+            pill.addEventListener('click', () => {
+                cycleToolState(group);
+            });
+        }
+    });
 });
+
+function cycleToolState(group) {
+    if (!currentSettings.tools) {
+        currentSettings.tools = {};
+    }
+    const currentVal = currentSettings.tools[group] || (
+        group === 'sys_tools' ? 'ask' :
+        group === 'browser_tools' ? 'ask' : 'always'
+    );
+    const states = ['always', 'ask', 'off'];
+    const nextIndex = (states.indexOf(currentVal) + 1) % states.length;
+    const nextVal = states[nextIndex];
+    
+    currentSettings.tools[group] = nextVal;
+    updateToolPillDOM(group, nextVal);
+    persistSettings();
+}
+
+function updateToolPillDOM(group, val) {
+    const pill = document.getElementById(`btn-${group}`);
+    if (!pill) return;
+    
+    pill.className = `tool-status-pill clickable state-${val}`;
+    const labelMap = {
+        always: 'Always Proceed',
+        ask: 'Ask',
+        off: 'Off'
+    };
+    pill.querySelector('.status-label').textContent = labelMap[val] || val;
+}
 
 // Listener for Provider Change (Switching contexts)
 providerSelect.addEventListener('change', (e) => {
@@ -894,6 +950,10 @@ function populateForm() {
             enableBrowserToolsToggle.checked = currentSettings.permissions.enableBrowserTools !== false;
         }
 
+        if (newChatSessionPlacementInput) {
+            newChatSessionPlacementInput.value = currentSettings.permissions.newChatSessionPlacement || 'window';
+        }
+
         // Auto-detect template if it matches exactly
         if (themeTemplateSelect && ui.customCss) {
             let foundMatch = false;
@@ -930,6 +990,16 @@ function populateForm() {
 
         applyUISettings(ui);
     }
+
+    // Load tools status
+    const toolGroups = ['sys_tools', 'web_tools', 'cognitive_tools', 'artifact_tools', 'browser_tools'];
+    toolGroups.forEach(group => {
+        const val = currentSettings.tools?.[group] || (
+            group === 'sys_tools' ? 'ask' :
+            group === 'browser_tools' ? 'ask' : 'always'
+        );
+        updateToolPillDOM(group, val);
+    });
 }
 
 function updateDeleteButtonVisibility() {
@@ -964,6 +1034,9 @@ function collectSettings() {
     }
     if (enableBrowserToolsToggle) {
         currentSettings.permissions.enableBrowserTools = enableBrowserToolsToggle.checked;
+    }
+    if (newChatSessionPlacementInput) {
+        currentSettings.permissions.newChatSessionPlacement = newChatSessionPlacementInput.value;
     }
 
     

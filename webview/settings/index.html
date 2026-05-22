@@ -57,6 +57,14 @@
                     </svg>
                     Appearance
                 </button>
+                <button class="nav-item" data-tab="tools">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                    </svg>
+                    Tools
+                </button>
             </nav>
 
         </aside>
@@ -137,6 +145,17 @@
                                 <option value="all">Ask for all commands</option>
                                 <option value="dangerous">Ask for dangerous only (Auto-approve safe/moderate)</option>
                                 <option value="none">Auto-approve all (Blocklist still active)</option>
+                            </select>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">New Chat Session Placement</div>
+                                <p class="setting-item-desc">Where a new chat session opens when starting a pop-out session.</p>
+                            </div>
+                            <select id="newChatSessionPlacement" class="styled-input" style="width: auto; min-width: 200px; flex-shrink: 0;">
+                                <option value="window">New Window (Beside Editor)</option>
+                                <option value="panel">New Panel (Active Editor Group)</option>
                             </select>
                         </div>
 
@@ -300,6 +319,81 @@
                             <button id="deleteTemplateBtn" class="secondary-btn small danger-ghost" style="display: none;">
                                 🗑️ Delete Template
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TOOLS TAB -->
+            <section id="tools" class="tab-view">
+                <div class="view-header">
+                    <h1>Tools Configuration</h1>
+                    <p>Manage permissions and access levels for various agentic tools.</p>
+                </div>
+
+                <div class="glass-panel">
+                    <div class="panel-section">
+                        <h3>Agent Tools</h3>
+                        <p class="section-desc">Toggle tools between: <strong>Always Proceed</strong> (never ask), <strong>Ask</strong> (prompt for confirmation), and <strong>Off</strong> (completely disable).</p>
+
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">Core File Tools</div>
+                                <p class="setting-item-desc">Allows the agent to view files, search the workspace, and read skeletons.</p>
+                            </div>
+                            <div class="tool-status-pill locked">
+                                <span class="status-label">Always Proceed</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">System Command Tools</div>
+                                <p class="setting-item-desc">Allows the agent to run terminal commands, build tasks, and start background processes.</p>
+                            </div>
+                            <div class="tool-status-pill clickable" id="btn-sys_tools">
+                                <span class="status-label">Ask</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">Web Navigation &amp; Search Tools</div>
+                                <p class="setting-item-desc">Allows the agent to search the web and scrape URL content.</p>
+                            </div>
+                            <div class="tool-status-pill clickable" id="btn-web_tools">
+                                <span class="status-label">Always Proceed</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">Cognitive &amp; Planning Tools</div>
+                                <p class="setting-item-desc">Allows the agent to create step plans, check progress, and verify tasks.</p>
+                            </div>
+                            <div class="tool-status-pill clickable" id="btn-cognitive_tools">
+                                <span class="status-label">Always Proceed</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">Artifact Management Tools</div>
+                                <p class="setting-item-desc">Allows the agent to read and write to artifacts inside the workspace.</p>
+                            </div>
+                            <div class="tool-status-pill clickable" id="btn-artifact_tools">
+                                <span class="status-label">Always Proceed</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-item">
+                            <div class="setting-item-content">
+                                <div class="setting-item-label">Browser Automation Tools</div>
+                                <p class="setting-item-desc">Allows the agent to open a browser window, capture snapshots, and interact with websites.</p>
+                            </div>
+                            <div class="tool-status-pill clickable" id="btn-browser_tools">
+                                <span class="status-label">Ask</span>
+                            </div>
                         </div>
                     </div>
                 </div>

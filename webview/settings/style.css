@@ -1816,3 +1816,57 @@ input:focus + .toggle-slider {
     border-color: rgba(241, 76, 76, 0.3);
     color: var(--danger-color);
 }
+
+/* Tool status pills */
+.tool-status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    min-width: 140px;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tool-status-pill.locked {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--panel-border);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+/* Three states: always (greenish/blueish), ask (amber/orange), off (red) */
+.tool-status-pill.state-always {
+    background: rgba(78, 201, 176, 0.1);
+    border: 1px solid rgba(78, 201, 176, 0.3);
+    color: #4ec9b0;
+}
+.tool-status-pill.state-always:hover {
+    background: rgba(78, 201, 176, 0.18);
+    box-shadow: 0 0 10px rgba(78, 201, 176, 0.2);
+}
+
+.tool-status-pill.state-ask {
+    background: rgba(255, 167, 38, 0.1);
+    border: 1px solid rgba(255, 167, 38, 0.3);
+    color: #ffa726;
+}
+.tool-status-pill.state-ask:hover {
+    background: rgba(255, 167, 38, 0.18);
+    box-shadow: 0 0 10px rgba(255, 167, 38, 0.2);
+}
+
+.tool-status-pill.state-off {
+    background: rgba(241, 76, 76, 0.1);
+    border: 1px solid rgba(241, 76, 76, 0.3);
+    color: #f14c4c;
+}
+.tool-status-pill.state-off:hover {
+    background: rgba(241, 76, 76, 0.18);
+    box-shadow: 0 0 10px rgba(241, 76, 76, 0.2);
+}
