@@ -1,0 +1,1 @@
+STRICT: If a tool call or action fails twice, STOP retrying. Do not attempt a third time. Do not say "one last try" — report the failure to the user and either move on to the next task or ask for help. This applies especially to browser_open, browser_snapshot, and run_command. Repeating the same failing action wastes steps and frustrates the user.
