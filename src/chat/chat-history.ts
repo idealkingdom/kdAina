@@ -62,7 +62,7 @@ export class ChatHistoryService {
     /**
      * Main Logic: Save a message
      */
-    public async addMessage(chatId: string, role: ROLE, messageText: string, images: string[] = [], imageDescriptions: string[] = [], agentId?: string, agentSteps?: any[], files?: any[]): Promise<StoredMessage> {
+    public async addMessage(chatId: string, role: ROLE, messageText: string, images: string[] = [], imageDescriptions: string[] = [], agentId?: string, agentSteps?: any[], files?: any[], tokensUsed?: number): Promise<StoredMessage> {
         let history = this.getHistory();
         const timestamp = new Date().toISOString();
         let chatIndex = history.findIndex(c => c.chat_id === chatId);
@@ -77,7 +77,8 @@ export class ChatHistoryService {
             images: images, // <--- Save the filenames
             imageDescriptions: imageDescriptions,
             files: files,
-            agentSteps: agentSteps
+            agentSteps: agentSteps,
+            tokensUsed: tokensUsed || undefined
         };
 
         if (chatIndex === -1) {
@@ -88,7 +89,8 @@ export class ChatHistoryService {
                 title: role === ROLE.USER ? messageText.substring(0, 100) : "New Chat",
                 timestamp: timestamp,
                 messages: [newMessage],
-                agentId: agentId
+                agentId: agentId,
+                totalTokens: tokensUsed || 0
             };
             // Add to top
             history.unshift(newChat);
@@ -106,6 +108,11 @@ export class ChatHistoryService {
             // Update title if it's still generic and the user typed something
             if (chat.title === "New Chat" && role === ROLE.USER) {
                 chat.title = messageText.substring(0, 100);
+            }
+
+            // Accumulate tokens
+            if (tokensUsed) {
+                chat.totalTokens = (chat.totalTokens || 0) + tokensUsed;
             }
 
             // Move to top (Most Recent)
