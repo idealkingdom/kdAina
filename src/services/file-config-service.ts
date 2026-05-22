@@ -165,7 +165,6 @@ export class FileConfigService {
                 callable: metadata.callable === true,
                 model: metadata.model || undefined,
                 stepBudget: metadata.stepBudget || undefined,
-                browserSubagent: metadata.browserSubagent === true,
                 order: isDefault ? (filename === 'architect' ? 1 : 2) : 10,
                 filePath
             };
@@ -175,7 +174,7 @@ export class FileConfigService {
         }
     }
 
-    public createAgent(name: string, content: string, temperature: number, callable?: boolean, model?: string, stepBudget?: number, browserSubagent?: boolean): string {
+    public createAgent(name: string, content: string, temperature: number, callable?: boolean, model?: string, stepBudget?: number): string {
         const id = this.titleToFilename(name);
         const ws = vscode.workspace.workspaceFolders?.[0];
         if (!ws) {
@@ -194,8 +193,7 @@ export class FileConfigService {
             active: true,
             callable: callable ?? false,
             model: model || undefined,
-            stepBudget: stepBudget || undefined,
-            browserSubagent: browserSubagent || undefined
+            stepBudget: stepBudget || undefined
         };
 
         const fileContent = `---\n${yaml.dump(frontmatter)}---\n${content}`;
@@ -248,7 +246,6 @@ export class FileConfigService {
         else if (field === 'callable') { metadata.callable = value; }
         else if (field === 'model') { metadata.model = value || undefined; }
         else if (field === 'stepBudget') { metadata.stepBudget = value || undefined; }
-        else if (field === 'browserSubagent') { metadata.browserSubagent = value; }
 
         const fileContent = `---\n${yaml.dump(metadata)}---\n${body.trim()}`;
         fs.writeFileSync(agent.filePath, fileContent, 'utf8');
