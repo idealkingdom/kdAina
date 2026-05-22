@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as os from 'os';
 import { aiRequest, aiStreamRequest, aiAgenticRequest } from '../api/ai';
 import { outputChannel } from '../logger';
@@ -14,6 +16,7 @@ import { getModelTier } from '../constants';
 import { handleInlineReview } from './chat-message-listener';
 import { ReviewManager } from './review-manager';
 import { ApprovalService } from './approval-service';
+import { FileConfigService } from '../services/file-config-service';
 
 /**
  * #52 — Collects system information so the agent knows which commands to run.
@@ -71,6 +74,20 @@ export class ChatCoreService {
         return crypto.randomUUID();
     }
     /**
+     * Returns essence context (blueprint.md + skill.md) for system prompt injection.
+     * Delegates to WorkspaceIndexService which maintains a cached, truncated copy —
+     * no synchronous I/O, no unbounded token injection.
+     */
+    private getEssenceContext(): string {
+        try {
+            return this.workspaceIndex.getEssenceContext();
+        } catch (e) {
+            outputChannel.appendLine(`[Essence] Error getting essence context: ${e}`);
+            return '';
+        }
+    }
+
+    /**
      * Cancel ongoing AI generation
      */
     public cancelChatRequest(chatId: string): boolean {
@@ -99,7 +116,8 @@ export class ChatCoreService {
         images?: any[],
         agentId?: string
     }, onChunk?: (text: string) => Promise<void> | void,
-        onAgentStep?: (step: AgentStepEvent) => void): Promise<{ text: string, usage?: any, hitStepLimit?: boolean, continuationMaxSteps?: number }> {
+        onAgentStep?: (step: AgentStepEvent) => void,
+        onUsageUpdate?: (usage: any) => void): Promise<{ text: string, usage?: any, hitStepLimit?: boolean, continuationMaxSteps?: number }> {
 
         const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
 
@@ -113,6 +131,21 @@ export class ChatCoreService {
 
         let aiResponseText = "";
         let totalUsage: any = null;
+
+        const conversation = this.historyService.getConversation(data.chat_id);
+        const previousTokens = conversation?.totalTokens || 0;
+
+        const handleUsageUpdate = (usage: any) => {
+            totalUsage = usage;
+            if (onUsageUpdate && usage) {
+                onUsageUpdate({
+                    promptTokens: usage.promptTokens,
+                    completionTokens: usage.completionTokens,
+                    totalTokens: previousTokens + (usage.totalTokens || 0)
+                });
+            }
+        };
+
         let hitStepLimit = false;
         let continuationMaxSteps = 0;
         const collectedAgentSteps: any[] = [];
@@ -141,6 +174,11 @@ export class ChatCoreService {
             }
 
             // --- STEP B: SAVE USER MESSAGE TO HISTORY ---
+            // Determine userMsgIdx before saving
+            const existingConversation = this.historyService.getConversation(data.chat_id);
+            const userMsgIdx = existingConversation ? existingConversation.messages.filter(m => m.role === ROLE.USER).length : 0;
+            ReviewManager.getInstance().setActiveMessageContext(data.chat_id, userMsgIdx);
+
             // #46: Preserve content for URL-scraped files since they can't be re-opened by path
             const lightweightFiles = data.files ? data.files.map((f: any) => {
                 const isUrl = f.path && (f.path.startsWith('http://') || f.path.startsWith('https://'));
@@ -299,11 +337,11 @@ export class ChatCoreService {
                     targetModel, apiKey, temperature, apiBaseUrl,
                     appSettings, onChunk, trackingOnAgentStep, abortController.signal,
                     apiKeyHeader,
-                    (usage) => { totalUsage = usage; },
+                    handleUsageUpdate,
                     azureStyle
                 );
                 aiResponseText = response.text;
-                if (!totalUsage) { totalUsage = response.usage; }
+                if (response.usage) { totalUsage = response.usage; }
                 if (response.hitStepLimit) {
                     hitStepLimit = true;
                     continuationMaxSteps = response.maxSteps || 0;
@@ -314,15 +352,15 @@ export class ChatCoreService {
                     targetModel, apiKey, temperature, apiBaseUrl,
                     appSettings, onChunk, abortController.signal,
                     apiKeyHeader,
-                    (usage) => { totalUsage = usage; },
+                    handleUsageUpdate,
                     azureStyle
                 );
                 aiResponseText = response.text;
-                if (!totalUsage) { totalUsage = response.usage; }
+                if (response.usage) { totalUsage = response.usage; }
             }
 
             // --- STEP E: SAVE AI RESPONSE ---
-            await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText, [], [], data.agentId, collectedAgentSteps);
+            await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText, [], [], data.agentId, collectedAgentSteps, undefined, totalUsage?.totalTokens);
             outputChannel.appendLine("Chat interaction saved and processed.");
 
         } catch (error: any) {
@@ -333,8 +371,8 @@ export class ChatCoreService {
                 outputChannel.appendLine(`[ChatCore] Request explicitly aborted by user for chatId=${data.chat_id}`);
                 aiResponseText = msg;
                 if (onChunk) { await onChunk(`\n\n${msg}`); }
-                // Usage is still returned via the result — tokens were consumed
-                outputChannel.appendLine(`[ChatCore] Usage on abort: ${totalUsage ? JSON.stringify(totalUsage) : 'none captured'}`);
+                // Discard estimated usage on abort so we don't save/persist estimates
+                totalUsage = null;
             } else {
                 console.error('Error fetching chat response:', error);
 
@@ -355,9 +393,10 @@ export class ChatCoreService {
                     await onChunk(aiResponseText);
                 }
             }
-            await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText, [], [], data.agentId, collectedAgentSteps);
+            await this.historyService.addMessage(data.chat_id, ROLE.BOT, aiResponseText, [], [], data.agentId, collectedAgentSteps, undefined, totalUsage?.totalTokens);
         } finally {
             ChatCoreService.activeAbortControllers.delete(data.chat_id);
+            ReviewManager.getInstance().setActiveMessageContext(null, null);
         }
 
         return { text: aiResponseText, usage: totalUsage, hitStepLimit, continuationMaxSteps };
@@ -371,7 +410,7 @@ export class ChatCoreService {
     private isAgenticAgent(agentId: string | undefined, settings: any): boolean {
         if (!agentId || agentId === 'default') { return false; }
 
-        const agent = settings.prompts.find((p: any) => p.id === agentId);
+        const agent = FileConfigService.getInstance().getAgents().find((p: any) => p.id === agentId);
         if (!agent) { return false; }
 
         // All non-default agents run in agentic mode
@@ -392,9 +431,10 @@ export class ChatCoreService {
         // System info is only needed for agentic mode (tool execution context)
         const baseSystemPrompt = settings.general?.systemPrompt || "You are an expert AI assistant.";
         const suggestionsEnabled = settings.general?.enableSuggestions !== false;
-        const systemPrompt = suggestionsEnabled
+        const essenceContext = this.getEssenceContext();
+        const systemPrompt = (suggestionsEnabled
             ? `${baseSystemPrompt}\n\nAt the very end of your response, suggest exactly 3 short, context-specific follow-up questions or next steps for the user. Output them in this format: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>.`
-            : baseSystemPrompt;
+            : baseSystemPrompt) + essenceContext;
         const steps = [{ content: systemPrompt }];
 
         let pipelineContext = currentMessage;
@@ -417,6 +457,23 @@ export class ChatCoreService {
             ];
 
             if (isLastStep && onChunk) {
+                let totalPromptLength = 0;
+                for (const msg of apiPayload) {
+                    if (typeof msg.content === 'string') {
+                        totalPromptLength += msg.content.length;
+                    }
+                }
+                const estimatedPromptTokens = Math.ceil(totalPromptLength / 4);
+
+                // Seed initial token usage to UI
+                if (onUsageUpdate) {
+                    onUsageUpdate({
+                        promptTokens: estimatedPromptTokens,
+                        completionTokens: 0,
+                        totalTokens: estimatedPromptTokens
+                    });
+                }
+
                 const result = await aiStreamRequest(
                     apiPayload, model, apiKey, requestTemperature, activeProvider, baseUrl, abortSignal, apiKeyHeader,
                     (event: any) => {
@@ -434,6 +491,15 @@ export class ChatCoreService {
                     if (chunk.type === 'text-delta') {
                         fullText += chunk.text;
                         onChunk(chunk.text);
+
+                        if (onUsageUpdate) {
+                            const estimatedCompletionTokens = Math.ceil(fullText.length / 4);
+                            onUsageUpdate({
+                                promptTokens: estimatedPromptTokens,
+                                completionTokens: estimatedCompletionTokens,
+                                totalTokens: estimatedPromptTokens + estimatedCompletionTokens
+                            });
+                        }
                     } else if (chunk.type === 'error') {
                         throw chunk.error;
                     }
@@ -471,7 +537,7 @@ export class ChatCoreService {
         // Pending edits are global and persist until the user accepts/reverts them.
 
         // Resolve the agent's system prompt
-        const agent = (settings.prompts || []).find((p: any) => p.id === data.agentId);
+        const agent = FileConfigService.getInstance().getAgents().find((p: any) => p.id === data.agentId);
         const systemPrompt = agent?.content || settings.general?.systemPrompt || "You are an expert AI assistant.";
 
         outputChannel.appendLine(`[Agentic] Agent=${data.agentId}, model=${model}, agentName=${agent?.name}`);
@@ -541,10 +607,11 @@ This shows a live checklist in the chat so the user can track what's done and wh
             ? `\n- At the very end of your final response (only after all tool calls are completed and you are presenting the final response to the user), suggest exactly 3 short, actionable follow-up questions or next steps. Format them exactly like this at the end: <suggestions>["Question 1", "Question 2", "Question 3"]</suggestions>. Do not include suggestions during intermediate steps or plans.`
             : '';
 
+        const essenceContext = this.getEssenceContext();
         let agenticSystemPrompt = `${systemPrompt}
 
 ${systemInfo}
-${artifactsContext}
+${artifactsContext}${essenceContext}
 --- WORKSPACE FILE TREE ---
 ${truncatedTree}
 ${editorSection}
@@ -591,6 +658,7 @@ CRITICAL RULES:
 - When editing, provide the EXACT target text to replace (including whitespace).
 - Always verify your changes compile and don't introduce workspace problems after editing.
 - Edits are applied DIRECTLY to the file. The user can review changes inline.
+- Whenever you modify the workspace files, verify if the architecture index (blueprint.md) or custom workflows/skills (skill.md) need to be updated. If they do, update them in the same turn before calling verify_completion.
 - Use web_search proactively for external libraries or APIs. Don't guess — search first.
 - When multiple independent tool calls can be made, call them ALL AT ONCE in a single step.${todoInstruction}${suggestionsInstruction}
 
@@ -617,30 +685,9 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
         }
 
 
-        // Resolve and inject rules (global + agent-linked)
-        const allRules: { name: string; content: string }[] = [];
-        const seenRuleIds = new Set<string>();
-
-        // 1. Global rules (scope === 'global')
-        for (const rule of (settings.rules || [])) {
-            if (rule.scope === 'global' && rule.content && !seenRuleIds.has(rule.id)) {
-                allRules.push(rule);
-                seenRuleIds.add(rule.id);
-            }
-        }
-
-        // 2. Agent-linked rules
-        if (agent?.linkedRules) {
-            for (const ruleId of agent.linkedRules) {
-                if (!seenRuleIds.has(ruleId)) {
-                    const rule = (settings.rules || []).find((r: any) => r.id === ruleId);
-                    if (rule?.content) {
-                        allRules.push(rule);
-                        seenRuleIds.add(ruleId);
-                    }
-                }
-            }
-        }
+        // Resolve and inject rules from FileConfigService
+        const rules = FileConfigService.getInstance().getRules();
+        const allRules = rules.filter(r => r.content.trim() !== '');
 
         const rulesSection = allRules.length > 0
             ? `\n\n--- APPLIED RULES ---\n${allRules.map(r => `[${r.name}]: ${r.content}`).join('\n')}\n`
@@ -685,6 +732,7 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
             abortSignal: abortSignal,
             tier: modelTier,
             stepBudget: stepBudget,
+            settings: settings,
             readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
             writeFilesConfirmation: alwaysProceed ? false : (settings.permissions?.writeFilesConfirmation ?? true),
             commandSafetyMode: alwaysProceed ? 'none' : (settings.permissions?.commandSafetyMode ?? 'smart'),
@@ -731,12 +779,12 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
         // Check if model supports reasoning
         let supportsReasoning = false;
         try {
-            const providers = require('../../models.json');
+            const providers = FileConfigService.getInstance().getProviders();
             if (providers[activeProvider]?.supportsReasoning?.includes(model)) {
                 supportsReasoning = true;
             }
         } catch (e) {
-            outputChannel.appendLine(`[Agentic] Error reading models.json: ${e}`);
+            outputChannel.appendLine(`[Agentic] Error reading reasoning support from FileConfig: ${e}`);
         }
 
         // Check custom models
@@ -766,6 +814,46 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
         outputChannel.appendLine(`[Agentic] maxSteps=${maxSteps}${isAggressive ? ' (aggressive)' : ''}`);
 
         let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+        
+        // Estimate initial prompt tokens based on character length of input messages
+        let totalPromptLength = 0;
+        if (messages && Array.isArray(messages)) {
+            for (const msg of messages) {
+                if (typeof msg.content === 'string') {
+                    totalPromptLength += msg.content.length;
+                } else if (Array.isArray(msg.content)) {
+                    for (const part of msg.content) {
+                        if (part && typeof part === 'object') {
+                            if (part.type === 'text' && typeof part.text === 'string') {
+                                totalPromptLength += part.text.length;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let cumulativePromptTokens = Math.ceil(totalPromptLength / 4);
+        let cumulativeCompletionTokens = 0;
+        let currentStepText = '';
+        let hasReceivedFirstStepUsage = false;
+
+        const sendRealtimeUsage = () => {
+            const estimatedCurrentCompletion = Math.ceil(currentStepText.length / 4);
+            const totalPrompt = cumulativePromptTokens || 0;
+            const totalCompletion = cumulativeCompletionTokens + estimatedCurrentCompletion;
+            const total = totalPrompt + totalCompletion;
+            if (onUsageUpdate) {
+                onUsageUpdate({
+                    promptTokens: totalPrompt,
+                    completionTokens: totalCompletion,
+                    totalTokens: total
+                });
+            }
+        };
+
+        // Seed initial token usage to UI
+        sendRealtimeUsage();
+
         try {
             const result = await aiAgenticRequest(
                 messages, model, apiKey, agentTemp, activeProvider, tools,
@@ -817,10 +905,8 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                         // Note: The UI handles the "waiting" indicator between steps
                         // via a frontend timer — no need for a backend heartbeat here.
 
-                        // Accumulate usage per step so tokens are counted even on abort
-                        if (event.usage) {
-                            if (onUsageUpdate) { onUsageUpdate(event.usage); }
-                        }
+                        // Usage accumulation is handled in the real-time 'finish-step'
+                        // stream event (below) for live token counting.
 
                         // Stream tool activity to frontend
                         // NOTE: tool_call is emitted from the streaming 'tool-call' part (below),
@@ -856,12 +942,12 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                                     } else if (cycle.status === 'exhausted') {
                                         onAgentStep({
                                             type: 'thinking',
-                                            text: `🛑 Test/build failed ${cycle.attempts} times. Retry budget exhausted — reporting to user.`
+                                            text: `⏹ Test/build failed ${cycle.attempts} times. Retry budget exhausted — reporting to user.`
                                         });
                                     } else if (cycle.status === 'passed' && cycle.attemptsBeforeSuccess > 1) {
                                         onAgentStep({
                                             type: 'thinking',
-                                            text: `✅ Test/build passed after ${cycle.attemptsBeforeSuccess} attempts. Self-correction succeeded.`
+                                            text: `✔ Test/build passed after ${cycle.attemptsBeforeSuccess} attempts. Self-correction succeeded.`
                                         });
                                     }
                                 }
@@ -934,6 +1020,11 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                         // Strip spurious 'None' that proxies inject at reasoning transitions
                         if (deltaText && deltaText.trim() === 'None') {
                             break;
+                        }
+
+                        if (deltaText) {
+                            currentStepText += deltaText;
+                            sendRealtimeUsage();
                         }
 
                         // Accumulate into buffer for tag detection
@@ -1013,8 +1104,12 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                     case 'reasoning-delta':
                         // Forward the thinking text to the UI
                         const delta = (part as any).textDelta;
-                        if (delta && onAgentStep) {
-                            onAgentStep({ type: 'thinking', text: delta });
+                        if (delta) {
+                            currentStepText += delta;
+                            sendRealtimeUsage();
+                            if (onAgentStep) {
+                                onAgentStep({ type: 'thinking', text: delta });
+                            }
                         }
                         break;
 
@@ -1074,7 +1169,20 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                         const reasoningTokens = usage?.outputTokenDetails?.reasoningTokens
                             || usage?.reasoningTokens || 0;
                         outputChannel.appendLine(`[Agentic] Step finished: reason=${(part as any).finishReason}, reasoning=${reasoningTokens} tokens`);
-                        // Note: reasoning text + token counts sent post-stream via result.steps
+
+                        // Fire live usage update from the real-time stream event
+                        if (usage) {
+                            if (!hasReceivedFirstStepUsage) {
+                                cumulativePromptTokens = usage.promptTokens || 0;
+                                hasReceivedFirstStepUsage = true;
+                            } else {
+                                cumulativePromptTokens += usage.promptTokens || 0;
+                            }
+                            cumulativeCompletionTokens += usage.completionTokens || 0;
+                        }
+                        // Reset step-specific estimates since we received exact values
+                        currentStepText = '';
+                        sendRealtimeUsage();
                         break;
                     }
 
