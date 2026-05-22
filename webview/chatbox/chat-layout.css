@@ -163,31 +163,6 @@ span.logo svg {
   border: none;
   align-items: flex-start;
   padding: 0;
-  max-height: 25vh;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.system-message .message-content.expanded {
-  max-height: none !important;
-}
-
-/* Custom scrollbars for system messages */
-.system-message .message-content::-webkit-scrollbar {
-  width: 4px;
-}
-
-.system-message .message-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.system-message .message-content::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.2);
-  border-radius: 4px;
-}
-
-.system-message .message-content::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.4);
 }
 
 /* #42: Agentic AI user message — inline task prompt */
@@ -570,6 +545,102 @@ span.logo svg {
 .hljs {
   text-wrap-mode: wrap;
   text-wrap-style: pretty;
+}
+
+/* --- CONFIRMATION MODAL --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-container {
+  background: var(--vscode-editorWidget-background, var(--chat-bg));
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  padding: 24px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  transform: scale(0.95);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.modal-overlay.active .modal-container {
+  transform: scale(1);
+}
+
+.modal-title {
+  margin: 0 0 12px 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-color);
+  font-family: var(--font-ui);
+}
+
+.modal-body {
+  margin: 0 0 20px 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-color);
+  opacity: 0.85;
+  font-family: var(--font-ui);
+}
+
+.modal-footer {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.modal-btn {
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+}
+
+.modal-btn.secondary {
+  background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
+  color: var(--vscode-button-secondaryForeground, var(--text-color));
+  border: 1px solid var(--border-color);
+}
+
+.modal-btn.secondary:hover {
+  background: var(--vscode-button-secondaryHoverBackground, rgba(255, 255, 255, 0.12));
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.modal-btn.danger {
+  background: #f14c4c;
+  color: white;
+  border: none;
+}
+
+.modal-btn.danger:hover {
+  background: #ff5c5c;
+  box-shadow: 0 4px 12px rgba(241, 76, 76, 0.3);
 }
 
 

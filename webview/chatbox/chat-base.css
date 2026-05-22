@@ -82,6 +82,98 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Splash Screen Styles */
+.splash-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--vscode-sideBar-background, #1e1e1e);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity 0.4s cubic-bezier(0.25, 1, 0.5, 1), visibility 0.4s;
+  pointer-events: all;
+}
+
+.splash-overlay.fade-out {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.splash-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  animation: splashEntrance 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.splash-logo {
+  width: 72px;
+  height: 72px;
+  filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.08));
+  animation: logoPulse 2s infinite ease-in-out;
+}
+
+body[data-vscode-theme-kind="vscode-light"] .splash-logo,
+body[data-vscode-theme-kind="vscode-high-contrast-light"] .splash-logo {
+  filter: invert(1) drop-shadow(0 0 12px rgba(0, 0, 0, 0.08));
+}
+
+.splash-text {
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  letter-spacing: 1px;
+  color: var(--text-color);
+  background: linear-gradient(135deg, var(--text-color) 0%, rgba(255, 255, 255, 0.4) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  opacity: 0.95;
+}
+
+/* Premium spinner */
+.splash-loader {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(255, 255, 255, 0.05);
+  border-top: 2px solid var(--vscode-textLink-foreground, #3794ff);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes splashEntrance {
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes logoPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 
 
 

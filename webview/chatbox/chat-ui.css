@@ -507,3 +507,66 @@
   opacity: 1;
 }
 
+/* ─── ESSENCE SUGGESTIONS SECTION ─── */
+.essence-suggestions-container {
+  margin: 0 4px 6px 4px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  animation: slideInFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.essence-suggestion-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--vscode-foreground, #cccccc);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: inherit;
+  font-weight: 500;
+  user-select: none;
+}
+
+.essence-suggestion-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--vscode-textLink-foreground, #3794ff);
+  color: var(--vscode-textLink-foreground, #3794ff);
+  transform: translateY(-1px);
+}
+
+.essence-suggestion-chip.selected {
+  background: rgba(55, 148, 255, 0.12);
+  border-color: var(--vscode-textLink-foreground, #3794ff);
+  color: var(--vscode-textLink-foreground, #3794ff);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(55, 148, 255, 0.15);
+}
+
+.essence-check-icon {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.essence-suggestion-chip:active .essence-check-icon {
+  transform: scale(0.85);
+}
+

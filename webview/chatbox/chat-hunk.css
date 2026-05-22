@@ -435,3 +435,47 @@
     transform: translateY(0);
   }
 }
+
+/* ─── AGENT WARNING BANNER (For Disabled Tools) ─── */
+.agent-warning-banner {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(244, 67, 54, 0.12);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  border-radius: 0 0 8px 8px;
+  backdrop-filter: blur(12px);
+  animation: bannerSlideDown 0.3s ease-out;
+  font-size: 0.78rem;
+  color: #ff8a80;
+  font-weight: 500;
+}
+
+.agent-warning-banner.hidden {
+  display: none;
+}
+
+.warning-icon {
+  font-size: 1rem;
+}
+
+.dismiss-warning-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: rgba(255, 138, 128, 0.6);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.dismiss-warning-btn:hover {
+  color: #fff;
+  background: rgba(244, 67, 54, 0.2);
+}
