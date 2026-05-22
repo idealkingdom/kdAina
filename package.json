@@ -113,7 +113,7 @@
       {
         "command": "kdaina.togglePopup",
         "category": "kdAina",
-        "title": "Detach Chat",
+        "title": "New Session",
         "icon": "$(link-external)"
       },
       {
@@ -240,7 +240,9 @@
     "@ai-sdk/azure": "^3.0.64",
     "@ai-sdk/google": "^3.0.68",
     "@ai-sdk/openai": "^3.0.50",
+    "@types/js-yaml": "^4.0.9",
     "ai": "^6.0.145",
+    "js-yaml": "^4.1.1",
     "pdf-parse": "^1.1.1",
     "zod": "^4.3.6",
     "zod-to-json-schema": "^3.25.2"
