@@ -699,7 +699,8 @@ function toggleSendButton(mode = "off") {
     const messageText = chatMessage ? chatMessage.innerText.trim() : "";
     const imagePills = chatMessage ? chatMessage.querySelectorAll('.inline-attachment-pill[data-image="true"]') : [];
     const filePills = chatMessage ? chatMessage.querySelectorAll('.inline-attachment-pill[data-file="true"]') : [];
-    const hasContent = messageText || imagePills.length > 0 || filePills.length > 0 || (typeof attachedFiles !== 'undefined' && attachedFiles && attachedFiles.length > 0);
+    const hasSelectedChips = document.querySelector('.essence-suggestion-chip.selected') !== null;
+    const hasContent = messageText || imagePills.length > 0 || filePills.length > 0 || (typeof attachedFiles !== 'undefined' && attachedFiles && attachedFiles.length > 0) || hasSelectedChips;
 
     if (mode === "disabled" || (mode === "off" && !hasContent)) {
         sendButton.classList.add("disabled");
@@ -819,6 +820,95 @@ function renderPromptSuggestions(suggestions, title = "") {
     const editorWrapper = document.querySelector('.editor-wrapper');
     if (editorWrapper) {
         editorWrapper.insertBefore(chipsContainer, editorWrapper.querySelector('.unified-input-container'));
+    }
+}
+
+function renderEssenceSuggestions(status) {
+    lastEssenceStatus = status;
+
+    const existing = document.querySelector('.essence-suggestions-container');
+    const hasSelection = existing && existing.querySelector('.essence-suggestion-chip.selected') !== null;
+    
+    if (hasSelection) {
+        // Keep existing user selection visible
+        return;
+    }
+
+    if (existing) existing.remove();
+
+    if (!status.isProject || !status.needsEssence) return;
+    if (status.hasBlueprint && status.hasSkill) return;
+
+    const container = document.createElement('div');
+    container.className = 'essence-suggestions-container';
+
+    const header = document.createElement('div');
+    header.className = 'suggestions-header';
+    header.style.marginBottom = '6px';
+    header.style.fontSize = '10px';
+    header.style.fontWeight = '600';
+    header.style.textTransform = 'uppercase';
+    header.style.letterSpacing = '0.5px';
+    header.style.color = 'var(--vscode-descriptionForeground, rgba(255, 255, 255, 0.4))';
+    header.style.userSelect = 'none';
+    header.textContent = 'Recommended Project Essence Files';
+    container.appendChild(header);
+
+    const chipsWrapper = document.createElement('div');
+    chipsWrapper.style.display = 'flex';
+    chipsWrapper.style.gap = '8px';
+    chipsWrapper.style.flexWrap = 'wrap';
+    container.appendChild(chipsWrapper);
+
+    const filesToSuggest = [];
+    if (!status.hasBlueprint) {
+        filesToSuggest.push({
+            id: 'blueprint',
+            filename: 'blueprint.md',
+            description: 'Documents project architecture, key modules, entry points, dependencies, and data flow — helps the AI understand how your codebase is structured.',
+            prompt: 'Analyze this workspace and create blueprint.md documenting the project architecture, key modules, entry points, dependencies, and data flow.'
+        });
+    }
+    if (!status.hasSkill) {
+        filesToSuggest.push({
+            id: 'skill',
+            filename: 'skill.md',
+            description: 'Documents coding conventions, preferred patterns, testing strategy, and workflow guidelines — helps the AI write code that matches your style.',
+            prompt: 'Analyze this workspace and create skill.md documenting coding conventions, preferred patterns, testing strategy, and workflow guidelines for this project.'
+        });
+    }
+
+    filesToSuggest.forEach(file => {
+        const chip = document.createElement('button');
+        chip.className = 'essence-suggestion-chip';
+        chip.dataset.fileId = file.id;
+        chip.dataset.prompt = file.prompt;
+        chip.title = file.description;
+        
+        const uncheckedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="essence-check-icon" style="margin-right: 6px; vertical-align: middle; opacity: 0.7;"><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>`;
+        const checkedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="essence-check-icon" style="margin-right: 6px; vertical-align: middle;"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor"></rect><path d="M9 12l2 2 4-4" stroke="var(--vscode-editor-background, #1e1e1e)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
+
+        chip.innerHTML = `${uncheckedSvg}<span>Create ${file.filename}</span>`;
+        
+        let isSelected = false;
+        chip.addEventListener('click', () => {
+            isSelected = !isSelected;
+            if (isSelected) {
+                chip.classList.add('selected');
+                chip.innerHTML = `${checkedSvg}<span>Create ${file.filename}</span>`;
+            } else {
+                chip.classList.remove('selected');
+                chip.innerHTML = `${uncheckedSvg}<span>Create ${file.filename}</span>`;
+            }
+            toggleSendButton("off");
+        });
+        
+        chipsWrapper.appendChild(chip);
+    });
+
+    const editorWrapper = document.querySelector('.editor-wrapper');
+    if (editorWrapper) {
+        editorWrapper.insertBefore(container, editorWrapper.querySelector('.unified-input-container'));
     }
 }
 

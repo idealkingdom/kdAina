@@ -9,7 +9,8 @@ function getLastChatTurn() {
 let _prevMinHeightTurn = null;
 
 function updateLastTurnMinHeight() {
-    const lastTurn = getLastChatTurn();
+    const turns = chatbox.querySelectorAll('.chat-turn');
+    const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
     const viewportHeight = chatLog.clientHeight;
 
     if (_prevMinHeightTurn && _prevMinHeightTurn !== lastTurn) {
@@ -17,11 +18,7 @@ function updateLastTurnMinHeight() {
     }
 
     if (!lastTurn) return;
-
-    const stickyHeader = lastTurn.querySelector('.user-message-wrapper');
-    const stickyHeight = stickyHeader ? stickyHeader.offsetHeight : 0;
-
-    lastTurn.style.minHeight = (viewportHeight - stickyHeight) + 'px';
+    lastTurn.style.minHeight = (viewportHeight - 32) + 'px';
     _prevMinHeightTurn = lastTurn;
 }
 
@@ -58,7 +55,7 @@ function scrollToStreamingContent() {
         if (lastChild) {
             const childRect = lastChild.getBoundingClientRect();
             const logRect = chatLog.getBoundingClientRect();
-            
+
             // childRect.bottom is relative to viewport. logRect.bottom is the visible bottom of the scroll container.
             if (childRect.bottom > logRect.bottom - 20) {
                 // Scroll down by the difference + 20px padding

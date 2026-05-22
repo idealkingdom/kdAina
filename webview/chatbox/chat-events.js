@@ -5,6 +5,11 @@
 window.addEventListener('message', event => {
     const message = event.data;
     switch (message.command) {
+        case 'essenceStatus':
+            if (typeof renderEssenceSuggestions === 'function') {
+                renderEssenceSuggestions(message.content);
+            }
+            break;
         case 'focus':
             // Only autofocus if the user isn't using another input (like search)
             if (document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
@@ -261,28 +266,19 @@ window.addEventListener('message', event => {
             resetChat(message.content);
             break;
 
-        // Backend asks frontend to initiate detach (from VS Code header button)
+        // Backend asks frontend to initiate a new session (from VS Code header button)
         case 'requestDetach':
             if (isGenerating) {
-                // Show inline warning — can't detach during active generation
+                // Show inline warning — can't open new session during active generation
                 const warnEl = document.createElement('div');
                 warnEl.className = 'detach-warning';
-                warnEl.textContent = 'Cannot detach while a request is in progress. Please wait or stop the request first.';
+                warnEl.textContent = 'Cannot start a new session while a request is in progress. Please wait or stop the request first.';
                 warnEl.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(220,38,38,0.9);color:#fff;padding:8px 16px;border-radius:8px;font-size:0.82rem;z-index:9999;animation:fadeOut 3s forwards;';
                 document.body.appendChild(warnEl);
                 setTimeout(() => warnEl.remove(), 3000);
                 break;
             }
-            {
-                const chatId = chatLog?.dataset?.chatId || '';
-                // Only detach if there's an actual conversation
-                if (chatId && chatMessages.children.length > 0) {
-                    sendMessage('detachChat', { chatId });
-                } else {
-                    // Nothing to detach — just open a blank popup
-                    sendMessage('detachChat', {});
-                }
-            }
+            sendMessage('detachChat', {});
             break;
 
         // Popup: load a conversation by emulating history click
@@ -438,6 +434,9 @@ window.addEventListener('message', event => {
                 }
             }
             updateActiveAgentUI(activeAgentId, message.agents);
+            if (typeof markComponentLoaded === 'function') {
+                markComponentLoaded('agents');
+            }
             break;
 
         case 'modelsUpdate':
@@ -453,6 +452,9 @@ window.addEventListener('message', event => {
                 }
                 MODELS = message.models;
                 initModelDropdown();
+            }
+            if (typeof markComponentLoaded === 'function') {
+                markComponentLoaded('models');
             }
             break;
 

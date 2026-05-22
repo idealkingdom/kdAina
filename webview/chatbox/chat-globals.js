@@ -13,6 +13,40 @@ console.log('VS_CONSTANTS:', window.VS_CONSTANTS);
 // Extract the constants injected by the backend
 const { CHAT_COMMANDS, ROLE } = window.VS_CONSTANTS || {};
 
+// --- SPLASH SCREEN CONTROL ---
+let splashDismissed = false;
+const splashMaxTimeout = setTimeout(() => {
+    dismissSplash();
+}, 1000);
+
+let loadedComponents = {
+    models: false,
+    agents: false
+};
+
+function markComponentLoaded(component) {
+    if (loadedComponents[component] !== undefined) {
+        loadedComponents[component] = true;
+    }
+    if (loadedComponents.models && loadedComponents.agents) {
+        dismissSplash();
+    }
+}
+
+function dismissSplash() {
+    if (splashDismissed) return;
+    splashDismissed = true;
+    clearTimeout(splashMaxTimeout);
+    
+    const splash = document.getElementById('splash-screen');
+    if (splash) {
+        splash.classList.add('fade-out');
+        setTimeout(() => {
+            splash.remove();
+        }, 400);
+    }
+}
+
 // Apply external media setting to context menu button
 function applyExternalMediaSetting(allowed) {
     const mediaBtn = document.querySelector('.context-item[data-type="media"]');
@@ -42,6 +76,20 @@ function sendMessage(command, data = '') {
         command: command,
         data: data
     });
+}
+
+let lastEssenceStatus = null;
+
+function isArchitecturalQuery(text) {
+    if (!text || text.trim().length < 3) return false;
+    
+    const patterns = [
+        /\b(structure|architecture|design|blueprint|layout|modules|folders?|directories|files?|organization|components?|entry\s*points?|overview|data\s*flow|flowchart)\b/i,
+        /\b(conventions?|guidelines?|standards?|rules?|patterns?|style|testing|tests?|workflow|coding\s*style|linter|linting|eslint|tsconfig)\b/i,
+        /\b(how\s+does\s+this\s+work|explain\s+this\s+project|what\s+is\s+this\s+project|about\s+this\s+project|understand\s+this\s+codebase|setup|set\s+up|install|run)\b/i
+    ];
+    
+    return patterns.some(pattern => pattern.test(text));
 }
 
 // --- GLOBALS ---

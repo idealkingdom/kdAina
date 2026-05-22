@@ -262,7 +262,7 @@ function renderFileSection(file, fileIdx) {
                     ${file.savedByUser ? '<span style="font-size: 0.65rem; border: 1px solid color-mix(in srgb, var(--vscode-editor-foreground) 20%, transparent); opacity: 0.6; padding: 1px 6px; border-radius: 3px;">SAVED</span>' : ''}
                 </div>
                 <div class="file-action-buttons" onclick="event.stopPropagation()">
-                    <button class="mono-file-btn" onclick="sendMessage('chatOpenFile', { uri: '${file.uri}' })" title="Open File">Open</button>
+                    <button class="mono-file-btn" onclick="sendMessage('chatOpenFile', { uri: '${file.uri}' })" title="Open Diff View">Diff</button>
                     <button class="mono-icon-btn reject" onclick="sendMessage('rejectFile', { uri: '${file.uri}' })" title="Reject File Changes">✕</button>
                     <button class="mono-icon-btn accept" onclick="sendMessage('acceptFile', { uri: '${file.uri}' })" title="Accept File Changes">✓</button>
                 </div>
