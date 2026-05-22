@@ -355,13 +355,85 @@ const read_line_range = tool({
         }
     } as any);
 
+    const get_workspace_essence = tool({
+        description: 'Gathers a semantic summary of the workspace architecture, including the directory tree, main package/configuration dependencies, and AST skeletons of key entrypoints and files. Use this to understand the project architecture or before writing/updating blueprint.md or skill.md.',
+        inputSchema: (jsonSchema as any)({
+            type: 'object',
+            properties: {},
+            additionalProperties: false
+        }),
+        execute: async () => {
+            await workspaceIndex.refresh();
+            const tree = workspaceIndex.getFileTreeString();
+            
+            let packageJsonSummary = 'No package.json found.';
+            const packageJsonPath = path.join(workspaceRoot, 'package.json');
+            if (fs.existsSync(packageJsonPath)) {
+                try {
+                    const raw = fs.readFileSync(packageJsonPath, 'utf8');
+                    const parsed = JSON.parse(raw);
+                    packageJsonSummary = JSON.stringify({
+                        name: parsed.name,
+                        dependencies: parsed.dependencies ? Object.keys(parsed.dependencies) : [],
+                        devDependencies: parsed.devDependencies ? Object.keys(parsed.devDependencies) : [],
+                        scripts: parsed.scripts ? Object.keys(parsed.scripts) : []
+                    }, null, 2);
+                } catch (e) {
+                    packageJsonSummary = `Error reading package.json: ${e}`;
+                }
+            }
+
+            const files = (workspaceIndex as any).index?.fileTree || [];
+            const prioritized: any[] = [];
+            const normal: any[] = [];
+            
+            for (const file of files) {
+                const name = path.basename(file.path).toLowerCase();
+                const isCode = ['typescript', 'javascript', 'python', 'go', 'rust', 'csharp', 'cpp', 'java'].includes(file.language);
+                if (isCode) {
+                    if (name.includes('main') || name.includes('index') || name.includes('app') || name.includes('extension') || name.includes('routes') || name.includes('server')) {
+                        prioritized.push(file);
+                    } else {
+                        normal.push(file);
+                    }
+                }
+            }
+            
+            normal.sort((a, b) => b.size - a.size);
+            const selectedFiles = [...prioritized, ...normal].slice(0, 20);
+            
+            const skeletons: { file: string; skeleton: string }[] = [];
+            for (const file of selectedFiles) {
+                try {
+                    const fileUri = vscode.Uri.file(file.path);
+                    const astSkeleton = await workspaceIndex.buildAstSkeleton(fileUri);
+                    if (astSkeleton) {
+                        skeletons.push({
+                            file: file.relativePath,
+                            skeleton: astSkeleton
+                        });
+                    }
+                } catch (e) {
+                    // ignore individual errors
+                }
+            }
+            
+            return {
+                tree,
+                packageJson: packageJsonSummary,
+                keySkeletons: skeletons
+            };
+        }
+    } as any);
+
     return {
         list_workspace,
         read_file_skeleton,
         read_line_range,
         chunk_replace,
         create_file,
-        find_symbol
+        find_symbol,
+        get_workspace_essence
     };
 }
 
