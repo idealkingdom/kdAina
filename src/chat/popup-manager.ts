@@ -31,10 +31,21 @@ export class PopupManager {
      * @param chatState - Optional { chatId } to load a conversation into the popup.
      */
     public static async openPopup(context: vscode.ExtensionContext, chatState?: { chatId?: string }) {
+        if (this._panels.size > 0) {
+            const existingPanel = Array.from(this._panels)[0];
+            existingPanel.reveal(existingPanel.viewColumn);
+            return;
+        }
+
+        const settingsManager = new SettingsManager(context);
+        const settings = settingsManager.getSettings();
+        const placement = settings.permissions?.newChatSessionPlacement || 'window';
+        const viewColumn = placement === 'panel' ? vscode.ViewColumn.Active : vscode.ViewColumn.Beside;
+
         const panel = vscode.window.createWebviewPanel(
             'kdainaChatPopup',
             'kdAina Chat',
-            vscode.ViewColumn.Beside,
+            viewColumn,
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
@@ -62,17 +73,16 @@ export class PopupManager {
         });
 
         const logoUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(context.extensionUri, 'webview', 'assets', 'logo.png'));
-        html = html.replace('{{LOGO_URI}}', logoUri.toString());
+        html = html.replace(/{{LOGO_URI}}/g, logoUri.toString());
 
-        const settingsManager = new SettingsManager(context);
-        const settings = settingsManager.getSettings();
+        const { FileConfigService } = require('../services/file-config-service');
 
         const SHARED_CONSTANTS = JSON.stringify({
             CHAT_COMMANDS: CHAT_COMMANDS,
             ROLE: ROLE,
             COMMANDS: COMMANDS,
             WORKFLOWS: WORKFLOWS,
-            AGENTS: settings.prompts || [],
+            AGENTS: FileConfigService.getInstance().getAgents(),
             MODELS: settings.models,
             AVAILABLE_MODELS: getModelProviderOptions(),
             CUSTOM_MODELS: settings.customModels || [],
