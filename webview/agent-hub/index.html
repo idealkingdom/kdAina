@@ -21,18 +21,18 @@
     </div>
     <nav class="hub-tabs">
       <button class="hub-tab active" data-tab="agents" id="tab-agents">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        👤
         Agents
       </button>
       <button class="hub-tab" data-tab="rules" id="tab-rules">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        📜
         Rules
       </button>
     </nav>
   </header>
-
+  
   <main class="hub-content">
-
+  
     <!-- ─── AGENTS TAB ──────────────────────────────────────────────── -->
     <section id="panel-agents" class="hub-panel active">
       <div class="agents-header-row">
@@ -41,8 +41,7 @@
           <p class="section-desc">Define custom agent identities, system prompts, and subagent delegation settings. Default agents are read-only; custom workspace agents are editable.</p>
         </div>
         <button class="hub-btn primary" id="btn-add-agent">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-          New Agent
+          ➕ New Agent
         </button>
       </div>
       <div class="agents-summary">
@@ -51,38 +50,36 @@
       </div>
       <div id="agents-list" class="agents-list">
         <div class="empty-state" id="agents-empty">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="empty-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <div class="empty-icon" style="font-size: 40px; margin-bottom: 16px;">👤</div>
           <h3>No agent profiles</h3>
           <p>Create agents with custom settings and system prompts.</p>
         </div>
       </div>
     </section>
-
+  
     <!-- ─── RULES TAB ──────────────────────────────────────────────── -->
     <section id="panel-rules" class="hub-panel">
       <!-- Rules Warning Banner -->
       <div class="rules-warning-banner" style="display: flex; align-items: flex-start; background: rgba(255, 165, 0, 0.1); border: 1px solid rgba(255, 165, 0, 0.2); padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; line-height: 1.4; color: var(--vscode-notificationsWarning-foreground, #cca700);">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px; flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span style="margin-right: 8px; flex-shrink: 0; margin-top: 2px;">⚠️</span>
         <span><strong>Rule limits:</strong> Keep rules modular and concise. Avoid creating massive single files; instead, break them down into separate files to prevent system prompt bloat and context window overload.</span>
       </div>
-
+  
       <div class="agents-header-row">
         <div>
           <h2 class="section-title">Rules</h2>
           <p class="section-desc">Define instructions and coding standards. Default rules are read-only; custom rules can be added per workspace.</p>
         </div>
         <button class="hub-btn primary" id="btn-add-rule">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-          New Rule
+          ➕ New Rule
         </button>
       </div>
       <div class="agents-summary">
         <span class="agent-summary-pill"><strong id="rule-count">0</strong> rules</span>
-        <span class="agent-summary-pill"><strong id="global-rule-count">0</strong> global</span>
       </div>
       <div id="rules-list" class="agents-list">
         <div class="empty-state" id="rules-empty">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="empty-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <div class="empty-icon" style="font-size: 40px; margin-bottom: 16px;">📜</div>
           <h3>No rules defined</h3>
           <p>Create rules to enforce coding standards, style guides, or custom instructions.</p>
         </div>
