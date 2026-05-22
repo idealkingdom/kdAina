@@ -257,11 +257,34 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.languages.registerCodeLensProvider({ scheme: 'file' }, new ReviewCodeLensProvider())
     );
 
-    // Update decorations when editor changes
+    const shouldAutoSaveDocument = (doc: vscode.TextDocument): boolean => {
+        if (!doc.isDirty) {
+            return false;
+        }
+        const filePath = doc.uri.fsPath.replace(/\\/g, '/');
+        return (
+            filePath.includes('.kdaina/agents/') ||
+            filePath.includes('resources/agents/') ||
+            filePath.includes('.kdaina/rules/') ||
+            filePath.includes('resources/rules/')
+        ) && filePath.endsWith('.md');
+    };
+
+    // Update decorations when editor changes, and save dirty agent/rule files on focus loss
     context.subscriptions.push(
-        vscode.window.onDidChangeActiveTextEditor(editor => {
+        vscode.window.onDidChangeActiveTextEditor(async (editor) => {
             if (editor) {
                 ReviewDecorationProvider.updateDecorations(editor);
+            }
+            for (const doc of vscode.workspace.textDocuments) {
+                if (doc.isDirty && doc !== editor?.document && shouldAutoSaveDocument(doc)) {
+                    await doc.save();
+                }
+            }
+        }),
+        vscode.workspace.onDidCloseTextDocument(async (doc) => {
+            if (shouldAutoSaveDocument(doc)) {
+                await doc.save();
             }
         }),
         vscode.workspace.onDidChangeTextDocument(event => {
