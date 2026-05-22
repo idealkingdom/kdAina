@@ -317,7 +317,7 @@ body { background: linear-gradient(145deg, #0a0a1a 0%, #0d0d2b 50%, #0a0a1a 100%
 
         // Inject Logo
         const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'webview', 'assets', 'logo.png'));
-        htmlContent = htmlContent.replace('{{LOGO_URI}}', logoUri.toString());
+        htmlContent = htmlContent.replace(/{{LOGO_URI}}/g, logoUri.toString());
 
         // Inject Nonce (Safety) - If we add CSP
         // htmlContent = htmlContent.replace(/nonce-PLACEHOLDER/g, nonce);
