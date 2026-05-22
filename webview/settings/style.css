@@ -1822,51 +1822,67 @@ input:focus + .toggle-slider {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 6px 16px;
+    gap: 6px;
+    padding: 4px 12px;
     border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    min-width: 140px;
+    font-size: 11px;
+    font-weight: 500;
+    min-width: 120px;
     text-align: center;
     cursor: pointer;
     user-select: none;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    background: rgba(128, 128, 128, 0.06);
+    border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.08));
+    color: var(--input-fg, rgba(255, 255, 255, 0.75));
+    transition: all 0.2s ease;
+}
+
+.tool-status-pill:hover {
+    background: rgba(128, 128, 128, 0.12);
+    border-color: var(--accent-color, #4facfe);
+    color: var(--input-fg, #ffffff);
 }
 
 .tool-status-pill.locked {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--panel-border);
+    background: rgba(128, 128, 128, 0.03);
+    border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.05));
     color: var(--text-muted);
     cursor: not-allowed;
+    opacity: 0.6;
 }
 
-/* Three states: always (greenish/blueish), ask (amber/orange), off (red) */
-.tool-status-pill.state-always {
-    background: rgba(78, 201, 176, 0.1);
-    border: 1px solid rgba(78, 201, 176, 0.3);
-    color: #4ec9b0;
-}
-.tool-status-pill.state-always:hover {
-    background: rgba(78, 201, 176, 0.18);
-    box-shadow: 0 0 10px rgba(78, 201, 176, 0.2);
-}
-
-.tool-status-pill.state-ask {
-    background: rgba(255, 167, 38, 0.1);
-    border: 1px solid rgba(255, 167, 38, 0.3);
-    color: #ffa726;
-}
-.tool-status-pill.state-ask:hover {
-    background: rgba(255, 167, 38, 0.18);
-    box-shadow: 0 0 10px rgba(255, 167, 38, 0.2);
-}
-
+/* Three states are styled neutrally to match the chatbox agent selector */
+.tool-status-pill.state-always,
+.tool-status-pill.state-ask,
 .tool-status-pill.state-off {
-    background: rgba(241, 76, 76, 0.1);
-    border: 1px solid rgba(241, 76, 76, 0.3);
-    color: #f14c4c;
+    color: var(--input-fg, rgba(255, 255, 255, 0.75));
+    border-color: var(--panel-border, rgba(255, 255, 255, 0.08));
 }
+
+.tool-status-pill.state-always:hover,
+.tool-status-pill.state-ask:hover,
 .tool-status-pill.state-off:hover {
-    background: rgba(241, 76, 76, 0.18);
-    box-shadow: 0 0 10px rgba(241, 76, 76, 0.2);
+    background: rgba(128, 128, 128, 0.12);
+    border-color: var(--accent-color, #4facfe);
+    color: var(--input-fg, #ffffff);
+}
+
+@keyframes cycle-spin {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(0.9); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes content-pulse {
+  0% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(0.96); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.tool-status-pill.cycling .cycle-icon {
+  animation: cycle-spin 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tool-status-pill.cycling {
+  animation: content-pulse 0.35s ease-out;
 }
