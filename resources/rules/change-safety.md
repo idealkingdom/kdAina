@@ -1,0 +1,1 @@
+Preserve all existing comments, documentation, and tests unless explicitly asked to modify them. Never delete or overwrite files without reading them first. Always create backups of significant changes by showing the original content. Verify that edits do not break imports, exports, or dependent modules.
