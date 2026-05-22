@@ -21,8 +21,6 @@ export interface PromptDef {
     isDefault?: boolean;
     isActive?: boolean;
     order?: number;
-    linkedSources?: string[];
-    linkedRules?: string[];
     /** Per-agent temperature override (0.0–1.0). Defaults to 0.15 for code agents. */
     temperature?: number;
     [key: string]: any;
@@ -56,6 +54,7 @@ export interface AppSettings {
         alwaysProceed?: boolean;
         enableTerminalSandbox?: boolean;
         enableBrowserTools?: boolean;
+        newChatSessionPlacement?: 'window' | 'panel';
     };
     ui: {
         sidebarPosition: 'left' | 'right';
@@ -65,16 +64,26 @@ export interface AppSettings {
     customTemplates: any[];
     customModels: any[];
     rules: { id: string; name: string; content: string; scope: 'global' | 'workspace' | 'assignable' }[];
+    tools?: Record<string, 'always' | 'ask' | 'off'>;
 }
 
 export function getModelProviderOptions(): Record<string, { name: string; models: { text: string[]; image: string[] } }> {
     try {
-        const modelsJsonPath = path.join(__dirname, '..', 'models.json');
-        if (fs.existsSync(modelsJsonPath)) {
-            return JSON.parse(fs.readFileSync(modelsJsonPath, 'utf8'));
+        const { FileConfigService } = require('./services/file-config-service');
+        const providers = FileConfigService.getInstance().getProviders();
+        const result: Record<string, { name: string; models: { text: string[]; image: string[] } }> = {};
+        for (const [name, p] of Object.entries(providers)) {
+            const providerVal = p as any;
+            result[name] = {
+                name: providerVal.name,
+                models: providerVal.models
+            };
+        }
+        if (Object.keys(result).length > 0) {
+            return result;
         }
     } catch (e) {
-        console.error("Failed to load models.json dynamically", e);
+        console.error("Failed to load models from FileConfigService", e);
     }
     // Fallback if not found
     return {
@@ -92,7 +101,8 @@ export function getModelProviderOptions(): Record<string, { name: string; models
  */
 export function getModelTier(provider: string, modelName: string): 'frontier' | 'mid' | 'small' {
     try {
-        const providers = getModelProviderOptions() as any;
+        const { FileConfigService } = require('./services/file-config-service');
+        const providers = FileConfigService.getInstance().getProviders();
         const providerData = providers[provider];
         if (providerData?.tiers?.[modelName]) {
             return providerData.tiers[modelName];
