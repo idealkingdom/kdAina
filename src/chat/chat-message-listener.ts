@@ -20,6 +20,7 @@ import { ApprovalService } from "./approval-service";
 
 import { ReviewManager, PendingEdit } from "./review-manager";
 import { PopupManager } from "./popup-manager";
+import { DiffContentProvider } from "./diff-content-provider";
 
 // For Handshake/Syncing
 const chunkAcks = new Map<string, (val: any) => void>();
@@ -142,27 +143,22 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                         command: 'indexUpdate',
                         content: { fileCount, lastUpdated: new Date().toISOString() }
                     });
-                    // Do not dispose the singleton
+                    
+                    // Send initial essence status (uses cached values — no I/O)
+                    await post({
+                        command: 'essenceStatus',
+                        content: wsIndex.getEssenceStatus()
+                    });
                 } catch (e) {
                     outputChannel.appendLine(`[Index] Initial index failed: ${e}`);
                 }
                 break;
             }
 
-        // DETACH CHAT — open popup with conversation, reset sidebar
+        // NEW SESSION — open a new independent chat session, keep current open
         case 'detachChat': {
             if (context) {
-                const chatId = message.data?.chatId;
-                // Open popup (with chatId if we have one)
-                await PopupManager.openPopup(context, chatId ? { chatId } : undefined);
-
-                // Reset the sidebar to a new chat
-                const newChatId = coreService.generateChatID();
-                ChatViewProvider.setCurrentSessionId(newChatId);
-                await post({
-                    command: CHAT_COMMANDS.CHAT_RESET,
-                    content: { uid: newChatId }
-                });
+                await PopupManager.openPopup(context, undefined);
             }
             break;
         }
@@ -280,7 +276,8 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                 const files = message.data.files;
                 const images = message.data.images;
                 const agentId = message.data.agentId;
-                // This turns the text + files into one big Markdown string
+                
+                // This turns the text + files into one big Markdown string for the UI display (without instructions)
                 const formattedMessage = formatMessageWithFiles(rawText, files);
 
                 await post({
@@ -291,10 +288,57 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                     role: ROLE.USER
                 });
 
+                // Append instructions to userQuery for the AI model's prompt
+                let userQuery = rawText;
+                const instructions: string[] = [];
+                if (message.data.createBlueprint) {
+                    instructions.push(
+`Analyze this workspace thoroughly and create an artifact called "blueprint.md" using the manage_artifact tool with scope="global" and action="create".
+
+blueprint.md should document:
+- Project overview and purpose
+- Architecture and high-level design
+- Key modules and their responsibilities
+- Entry points and execution flow
+- Dependencies and their roles
+- Data flow between components
+- Directory structure explanation
+
+Write comprehensive, well-structured Markdown. In your visible response, just confirm the blueprint was created and give a brief summary of the project architecture.`
+                    );
+                }
+                if (message.data.createSkill) {
+                    instructions.push(
+`Analyze this workspace thoroughly and create an artifact called "skill.md" using the manage_artifact tool with scope="global" and action="create".
+
+skill.md should document:
+- Coding conventions and style guidelines used in this project
+- Preferred design patterns and idioms
+- Testing strategy and test organization
+- Build and development workflow
+- Naming conventions
+- Error handling patterns
+- Any project-specific rules or preferences observed in the code
+
+Write comprehensive, well-structured Markdown. In your visible response, just confirm the skill file was created and give a brief summary of the project conventions.`
+                    );
+                }
+                if (instructions.length > 0) {
+                    const instructionsStr = instructions.join('\n\n');
+                    if (userQuery && userQuery.trim() !== '') {
+                        userQuery = userQuery + '\n\n' + instructionsStr;
+                    } else {
+                        userQuery = instructionsStr;
+                    }
+                }
+
+                // This turns the query + files into the full Markdown string for the AI
+                const fullMessageForAi = formatMessageWithFiles(userQuery, files);
+
                 // We replace the original message data with our new formatted one
                 const aiData = {
                     ...message.data,
-                    message: formattedMessage, // <--- Pass the FULL content
+                    message: fullMessageForAi, // <--- Pass the FULL content with instructions
                     agentId: agentId,          // <--- Pass the agent mode
                     files: [] // Clear files so Core doesn't double-append them
                 };
@@ -341,21 +385,32 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                                 command: CHAT_COMMANDS.CHAT_AGENT_STEP,
                                 content: step
                             });
+                        },
+                        // onUsageUpdate — stream token usage to frontend live
+                        (usage) => {
+                            post({
+                                command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
+                                usage: usage
+                            });
                         }
                     );
-
-                    if (usage) {
-                        post({
-                            command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
-                            usage: usage
-                        });
-                    }
 
                     post({
                         command: CHAT_COMMANDS.CHAT_STREAM_END,
                         content: aiResponse,
                         role: ROLE.BOT
                     });
+
+                    // Sync final token count with DB (e.g. to revert estimates if aborted)
+                    const finalConversation = historyService.getConversation(aiData.chat_id);
+                    if (finalConversation) {
+                        post({
+                            command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
+                            usage: {
+                                totalTokens: finalConversation.totalTokens || 0
+                            }
+                        });
+                    }
 
                     // If the agent hit the step limit, offer continuation
                     if (hitStepLimit) {
@@ -377,6 +432,17 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                         content: `\n\n[System] Request failed: ${error?.message || 'Unknown error'}`,
                         role: ROLE.BOT
                     });
+
+                    // Sync final token count with DB (e.g. to revert estimates if aborted)
+                    const finalConversation = historyService.getConversation(aiData.chat_id);
+                    if (finalConversation) {
+                        post({
+                            command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
+                            usage: {
+                                totalTokens: finalConversation.totalTokens || 0
+                            }
+                        });
+                    }
                 }
                 break;
             }
@@ -404,82 +470,33 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                 break;
             }
 
-        case CHAT_COMMANDS.CHAT_RETRY:
+        case CHAT_COMMANDS.CHAT_UNDO:
             {
                 const chatId = message.data.chat_id;
-                const deleteCount = message.data.count ?? 2;
                 const userMsgIdx = message.data.userMsgIdx;
-                const overrideMessage = message.data.overrideMessage ?? null;
-                const retryAgentId = message.data.agentId || null;
 
-                // 1. Delete messages from history, get the original user text back
-                let lastUserMessage = null;
+                // 1. Delete messages from history starting from the userMsgIdx
                 if (userMsgIdx !== undefined) {
-                    lastUserMessage = await historyService.deleteFromUserMessageIndex(chatId, userMsgIdx);
+                    await historyService.deleteFromUserMessageIndex(chatId, userMsgIdx);
+                }
+
+                // 2. Discard/revert pending file changes from this message index onward
+                if (userMsgIdx !== undefined) {
+                    await ReviewManager.getInstance().discardEditsPastMessage(chatId, userMsgIdx);
                 } else {
-                    lastUserMessage = await historyService.deleteLastMessages(chatId, deleteCount);
-                }
-                
-                const messageToSend = overrideMessage || lastUserMessage;
-                if (!messageToSend) {
-                    // No message recovered — cancel the loading state cleanly
-                    post({
-                        command: CHAT_COMMANDS.CHAT_STREAM_END,
-                        content: '',
-                        role: ROLE.BOT
-                    });
-                    break;
+                    await ReviewManager.getInstance().discardAll();
                 }
 
-                // 2. Re-stream using recovered or overridden message
-                const retryData = {
-                    message: messageToSend,
-                    chat_id: chatId,
-                    agentId: retryAgentId,
-                    timestamp: new Date().toISOString(),
-                    files: [],
-                    images: []
-                };
+                // 3. Clear the active agent turn so the agent is ready for a new attempt
+                ReviewManager.getInstance().startTurn();
 
-                post({ command: CHAT_COMMANDS.CHAT_STREAM_START });
-
-                try {
-                    const { text: aiResponse, usage } = await coreService.processChatRequest(
-                        retryData, 
-                        async (chunk) => {
-                            await post({
-                                command: CHAT_COMMANDS.CHAT_STREAM_CHUNK,
-                                content: chunk
-                            });
-                        },
-                        async (step) => {
-                            await post({
-                                command: CHAT_COMMANDS.CHAT_AGENT_STEP,
-                                content: step
-                            });
-                        }
-                    );
-
-                    if (usage) {
-                        post({
-                            command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
-                            usage: usage
-                        });
-                    }
-
-                    post({
-                        command: CHAT_COMMANDS.CHAT_STREAM_END,
-                        content: aiResponse,
-                        role: ROLE.BOT
-                    });
-                } catch (retryError: any) {
-                    outputChannel.appendLine(`[Retry] Error: ${retryError?.message || retryError}`);
-                    post({
-                        command: CHAT_COMMANDS.CHAT_STREAM_END,
-                        content: `Error: ${retryError?.message || 'Retry failed'}`,
-                        role: ROLE.BOT
-                    });
-                }
+                // 4. Update the token pill in the UI with the remaining conversation's totalTokens
+                const conversation = historyService.getConversation(chatId);
+                const totalTokens = conversation?.totalTokens ?? 0;
+                post({
+                    command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
+                    usage: { totalTokens }
+                });
                 break;
             }
 
@@ -539,6 +556,14 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                         content: { 
                             uid: conversation.chat_id,
                             agentId: conversation.agentId
+                        }
+                    });
+
+                    // C. Restore Token Usage Count to UI
+                    await post({
+                        command: CHAT_COMMANDS.CHAT_USAGE_UPDATE,
+                        usage: {
+                            totalTokens: conversation.totalTokens || 0
                         }
                     });
 
@@ -1157,8 +1182,22 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                     fileUri = vscode.Uri.file(path.join(workspaceRoot, uri));
                 }
                 
-                // #43: Just open the file — CodeLens + Decorations handle the review inline
-                await vscode.window.showTextDocument(fileUri);
+                const reviewManager = ReviewManager.getInstance();
+                const pendingEdits = reviewManager.getPendingEdits(fileUri.toString());
+                if (pendingEdits && pendingEdits.length > 0) {
+                    const originalUri = fileUri.with({ scheme: DiffContentProvider.scheme });
+                    const originalContent = reviewManager.getOriginalContent(fileUri) ?? '';
+                    DiffContentProvider.getInstance().updateContent(originalUri, originalContent);
+                    
+                    await vscode.commands.executeCommand(
+                        'vscode.diff',
+                        originalUri,
+                        fileUri,
+                        `${path.basename(fileUri.fsPath)} (Review Changes)`
+                    );
+                } else {
+                    await vscode.window.showTextDocument(fileUri);
+                }
                 break;
             }
 
@@ -1301,6 +1340,20 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                 break;
             }
 
+        case 'checkEssenceStatus':
+            {
+                try {
+                    const { WorkspaceIndexService } = require('../services/workspace-index');
+                    await post({
+                        command: 'essenceStatus',
+                        content: WorkspaceIndexService.getInstance().getEssenceStatus()
+                    });
+                } catch (e) {
+                    outputChannel.appendLine(`[Essence] Check status failed: ${e}`);
+                }
+                break;
+            }
+
         // Handle other messages here
         default:
             outputChannel.appendLine('Unknown message received:' + message);
@@ -1342,9 +1395,7 @@ export async function handleInlineReview(
                 vscode.window.showInformationMessage('No pending changes.');
                 return;
             }
-            // #43: Open the first file with pending edits — CodeLens handles the rest
-            await vscode.window.showTextDocument(stagedUris[0]);
-            return;
+            fileUri = stagedUris[0];
         } else {
             // B. Specific Tool Review — open the edited file
             const filePathParam = args.filePath || args.TargetFile;
@@ -1354,9 +1405,24 @@ export async function handleInlineReview(
 
         if (!fileUri) { return; }
         
-        // #43: Just open the file — decorations + CodeLens show the review inline
-        await vscode.window.showTextDocument(fileUri);
-        outputChannel.appendLine(`[InlineReview] Opened ${path.basename(fileUri.fsPath)} for inline review`);
+        const reviewManager = ReviewManager.getInstance();
+        const pendingEdits = reviewManager.getPendingEdits(fileUri.toString());
+        if (pendingEdits && pendingEdits.length > 0) {
+            const originalUri = fileUri.with({ scheme: DiffContentProvider.scheme });
+            const originalContent = reviewManager.getOriginalContent(fileUri) ?? '';
+            DiffContentProvider.getInstance().updateContent(originalUri, originalContent);
+            
+            await vscode.commands.executeCommand(
+                'vscode.diff',
+                originalUri,
+                fileUri,
+                `${path.basename(fileUri.fsPath)} (Review Changes)`
+            );
+            outputChannel.appendLine(`[InlineReview] Opened diff editor for ${path.basename(fileUri.fsPath)}`);
+        } else {
+            await vscode.window.showTextDocument(fileUri);
+            outputChannel.appendLine(`[InlineReview] Opened ${path.basename(fileUri.fsPath)} for inline review`);
+        }
     } catch (e) {
         outputChannel.appendLine(`[InlineReview] Error: ${e}`);
     }
