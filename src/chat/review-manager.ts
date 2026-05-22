@@ -16,6 +16,8 @@ export interface PendingEdit {
     toolName?: string;
     /** Timestamp */
     timestamp: number;
+    chatId?: string;
+    userMsgIdx?: number;
 }
 
 /**
@@ -46,7 +48,66 @@ export class ReviewManager {
     private _isTerminalRunning = false;
     public setTerminalRunning(val: boolean) { this._isTerminalRunning = val; }
 
+    private workspaceState?: vscode.Memento;
+    private isInitializing = false;
+
+    private activeChatId: string | null = null;
+    private activeUserMsgIdx: number | null = null;
+
+    public setActiveMessageContext(chatId: string | null, userMsgIdx: number | null) {
+        this.activeChatId = chatId;
+        this.activeUserMsgIdx = userMsgIdx;
+    }
+
+    public initialize(context: vscode.ExtensionContext) {
+        this.workspaceState = context.workspaceState;
+        this.loadFromStorage();
+    }
+
+    private loadFromStorage() {
+        if (!this.workspaceState) return;
+        this.isInitializing = true;
+        try {
+            const storedEdits = this.workspaceState.get<[string, PendingEdit[]][]>('kdaina.pendingEdits');
+            const storedSnapshots = this.workspaceState.get<[string, string][]>('kdaina.originalSnapshots');
+            
+            if (storedEdits) {
+                this.pendingEdits = new Map<string, PendingEdit[]>(storedEdits);
+            }
+            if (storedSnapshots) {
+                this.originalSnapshots = new Map<string, string>(storedSnapshots);
+            }
+            
+            const hasPending = this.getTotalPendingCount() > 0;
+            vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', hasPending);
+            this._onDidUpdateStaging.fire(this.getTotalPendingCount());
+            this.refreshActiveDecorations();
+        } catch (err) {
+            console.error('[ReviewManager] Failed to load pending changes from storage:', err);
+        } finally {
+            this.isInitializing = false;
+        }
+    }
+
+    private async saveToStorage() {
+        if (this.isInitializing || !this.workspaceState) return;
+        try {
+            const storedEdits = Array.from(this.pendingEdits.entries());
+            const storedSnapshots = Array.from(this.originalSnapshots.entries());
+            
+            await this.workspaceState.update('kdaina.pendingEdits', storedEdits);
+            await this.workspaceState.update('kdaina.originalSnapshots', storedSnapshots);
+        } catch (err) {
+            console.error('[ReviewManager] Failed to save pending changes to storage:', err);
+        }
+    }
+
     private constructor() {
+        // Automatically save to workspaceState whenever staging changes occur
+        this._onDidUpdateStaging.event(() => {
+            this.saveToStorage();
+        });
+
         // Track file creations while terminal is running
         vscode.workspace.onDidCreateFiles(async (e) => {
             if (this._isTerminalRunning) {
@@ -209,7 +270,9 @@ export class ReviewManager {
                 startLine: startPos.line,
                 endLine: startPos.line + newLineCount - 1,
                 toolName,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                chatId: this.activeChatId || undefined,
+                userMsgIdx: this.activeUserMsgIdx !== null ? this.activeUserMsgIdx : undefined
             };
 
             if (!this.pendingEdits.has(key)) {
@@ -257,7 +320,6 @@ export class ReviewManager {
                 this._isSaving = false;
             }
 
-            // Track the entire file as a pending edit
             const lineCount = content.split('\n').length;
             const pendingEdit: PendingEdit = {
                 originalContent: '',
@@ -265,7 +327,9 @@ export class ReviewManager {
                 startLine: 0,
                 endLine: lineCount - 1,
                 toolName,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                chatId: this.activeChatId || undefined,
+                userMsgIdx: this.activeUserMsgIdx !== null ? this.activeUserMsgIdx : undefined
             };
 
             this.originalSnapshots.set(key, '');
@@ -295,7 +359,9 @@ export class ReviewManager {
             startLine: 0,
             endLine: Math.max(0, lineCount - 1),
             toolName: 'terminal',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            chatId: this.activeChatId || undefined,
+            userMsgIdx: this.activeUserMsgIdx !== null ? this.activeUserMsgIdx : undefined
         };
 
         this.originalSnapshots.set(key, '');
@@ -336,9 +402,9 @@ export class ReviewManager {
     }
 
     /**
-     * Revert a single edit — restore the original text.
+     * Internal helper to revert a single edit without updating vscode context/decorations.
      */
-    public async revertEdit(uriStr: string, editIndex: number) {
+    private async revertSingleEditInternal(uriStr: string, editIndex: number) {
         const edits = this.pendingEdits.get(uriStr);
         if (!edits || editIndex < 0 || editIndex >= edits.length) { return; }
 
@@ -380,10 +446,55 @@ export class ReviewManager {
             this.pendingEdits.delete(uriStr);
             this.originalSnapshots.delete(uriStr);
         }
+    }
 
-        if (this.getTotalPendingCount() === 0) {
-            vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', false);
+    /**
+     * Revert a single edit — restore the original text.
+     */
+    public async revertEdit(uriStr: string, editIndex: number) {
+        await this.revertSingleEditInternal(uriStr, editIndex);
+
+        const hasPending = this.getTotalPendingCount() > 0;
+        vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', hasPending);
+        this._onDidUpdateStaging.fire(this.getTotalPendingCount());
+        this.refreshActiveDecorations();
+    }
+
+    /**
+     * Discard all edits and created files associated with the specified chatId and having userMsgIdx >= targetUserMsgIdx.
+     */
+    public async discardEditsPastMessage(chatId: string, userMsgIdx: number) {
+        for (const uriStr of Array.from(this.pendingEdits.keys())) {
+            const edits = this.pendingEdits.get(uriStr) || [];
+            const targetEdits = edits.filter(e => e.chatId === chatId && e.userMsgIdx !== undefined && e.userMsgIdx >= userMsgIdx);
+            if (targetEdits.length === 0) continue;
+
+            // Check if this file was created at or after targetMsgIdx
+            const isCreatedFile = edits[0]?.originalContent === '' && edits[0]?.chatId === chatId && edits[0]?.userMsgIdx !== undefined && edits[0]?.userMsgIdx >= userMsgIdx;
+            if (isCreatedFile && targetEdits.length === edits.length) {
+                // Delete the file
+                const uri = vscode.Uri.parse(uriStr);
+                try {
+                    await vscode.workspace.fs.delete(uri, { recursive: true, useTrash: false });
+                } catch (err) {
+                    console.error(`[ReviewManager] Failed to delete created file ${uriStr}:`, err);
+                }
+                this.pendingEdits.delete(uriStr);
+                this.originalSnapshots.delete(uriStr);
+                continue;
+            }
+
+            // Otherwise, revert edits in reverse order
+            for (let i = edits.length - 1; i >= 0; i--) {
+                const e = edits[i];
+                if (e.chatId === chatId && e.userMsgIdx !== undefined && e.userMsgIdx >= userMsgIdx) {
+                    await this.revertSingleEditInternal(uriStr, i);
+                }
+            }
         }
+
+        const hasPending = this.getTotalPendingCount() > 0;
+        vscode.commands.executeCommand('setContext', 'kdaina.reviewPending', hasPending);
         this._onDidUpdateStaging.fire(this.getTotalPendingCount());
         this.refreshActiveDecorations();
     }
@@ -475,6 +586,13 @@ export class ReviewManager {
      */
     public getStagedUris(): vscode.Uri[] {
         return Array.from(this.pendingEdits.keys()).map(s => vscode.Uri.parse(s));
+    }
+
+    /**
+     * Get the original snapshot content of the file.
+     */
+    public getOriginalContent(uri: vscode.Uri): string | undefined {
+        return this.originalSnapshots.get(uri.toString());
     }
 
     /**

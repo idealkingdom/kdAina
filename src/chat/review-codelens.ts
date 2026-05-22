@@ -34,15 +34,9 @@ export class ReviewCodeLensProvider implements vscode.CodeLensProvider {
             const range = new vscode.Range(line, 0, line, 0);
 
             lenses.push(new vscode.CodeLens(range, {
-                title: `$(check) Accept Change`,
-                command: 'kdaina.acceptEdit',
-                arguments: [uriStr, idx]
-            }));
-
-            lenses.push(new vscode.CodeLens(range, {
-                title: `$(discard) Revert Change`,
-                command: 'kdaina.revertEdit',
-                arguments: [uriStr, idx]
+                title: `$(diff) Review Change`,
+                command: 'kdaina.openDiff',
+                arguments: [uriStr]
             }));
         });
 
@@ -59,15 +53,14 @@ export class ReviewCodeLensProvider implements vscode.CodeLensProvider {
  * with a diff-formatted code block showing exactly what was removed.
  */
 export class ReviewDecorationProvider {
-    private static addedDecoration = vscode.window.createTextEditorDecorationType({
-        backgroundColor: 'rgba(76, 175, 80, 0.12)',
+    private static modifiedDecoration = vscode.window.createTextEditorDecorationType({
+        backgroundColor: 'rgba(255, 140, 0, 0.12)',
         isWholeLine: true,
-        overviewRulerColor: 'rgba(76, 175, 80, 0.8)',
+        overviewRulerColor: 'rgba(255, 140, 0, 0.8)',
         overviewRulerLane: vscode.OverviewRulerLane.Full,
-        gutterIconPath: undefined,
         borderWidth: '0 0 0 3px',
         borderStyle: 'solid',
-        borderColor: 'rgba(76, 175, 80, 0.6)',
+        borderColor: 'rgba(255, 140, 0, 0.6)',
     });
 
     private static pendingDecoration = vscode.window.createTextEditorDecorationType({
@@ -77,19 +70,6 @@ export class ReviewDecorationProvider {
         overviewRulerLane: vscode.OverviewRulerLane.Center,
     });
 
-    /** Red gutter marker for deletion indicators */
-    private static deletionMarker = vscode.window.createTextEditorDecorationType({
-        isWholeLine: true,
-        overviewRulerColor: 'rgba(244, 67, 54, 0.8)',
-        overviewRulerLane: vscode.OverviewRulerLane.Left,
-        before: {
-            contentText: '−',
-            color: 'rgba(244, 67, 54, 0.85)',
-            fontWeight: 'bold',
-            textDecoration: 'none; position: relative; margin-right: 4px;',
-        },
-    });
-
     public static updateDecorations(editor: vscode.TextEditor) {
         const reviewManager = ReviewManager.getInstance();
         const uriStr = editor.document.uri.toString();
@@ -97,14 +77,12 @@ export class ReviewDecorationProvider {
         const pendingEdits = reviewManager.getPendingEdits(uriStr);
 
         if (!pendingEdits || pendingEdits.length === 0) {
-            editor.setDecorations(this.addedDecoration, []);
+            editor.setDecorations(this.modifiedDecoration, []);
             editor.setDecorations(this.pendingDecoration, []);
-            editor.setDecorations(this.deletionMarker, []);
             return;
         }
 
-        const addedRanges: vscode.DecorationOptions[] = [];
-        const deletionRanges: vscode.DecorationOptions[] = [];
+        const modifiedRanges: vscode.DecorationOptions[] = [];
 
         pendingEdits.forEach(edit => {
             const startLine = Math.max(0, edit.startLine);
@@ -122,26 +100,19 @@ export class ReviewDecorationProvider {
                 hoverContent.appendMarkdown(`**AI Change** — Modified by \`${edit.toolName || 'agent'}\`\n\n`);
                 hoverContent.appendMarkdown(`🔴 **${deletedLineCount} line${deletedLineCount !== 1 ? 's' : ''} removed:**\n\n`);
                 hoverContent.appendCodeblock(escapedOriginal, 'diff');
-
-                // Add deletion marker on the first line of the edit
-                deletionRanges.push({
-                    range: new vscode.Range(startLine, 0, startLine, 0),
-                    hoverMessage: new vscode.MarkdownString(`🔴 **${deletedLineCount} line${deletedLineCount !== 1 ? 's' : ''} removed** — hover green lines to see deleted code`)
-                });
             } else {
                 hoverContent = new vscode.MarkdownString(`**AI Change** — New content by \`${edit.toolName || 'agent'}\``);
             }
 
-            // ── Green: added/modified lines with hover showing deleted code ──
+            // ── Orange: modified lines with hover showing deleted code ──
             for (let i = startLine; i <= endLine; i++) {
-                addedRanges.push({
+                modifiedRanges.push({
                     range: new vscode.Range(i, 0, i, editor.document.lineAt(i).text.length),
                     hoverMessage: hoverContent
                 });
             }
         });
 
-        editor.setDecorations(this.addedDecoration, addedRanges);
-        editor.setDecorations(this.deletionMarker, deletionRanges);
+        editor.setDecorations(this.modifiedDecoration, modifiedRanges);
     }
 }
