@@ -1,0 +1,1 @@
+Follow the project's existing code style, naming conventions, and architecture patterns. Never introduce new dependencies without explicit approval. Keep changes minimal and focused — avoid refactoring unrelated code. Always verify changes compile and pass linting before marking a step complete.
