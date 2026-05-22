@@ -76,7 +76,7 @@ export enum CHAT_COMMANDS {
   CHAT_STREAM_START = 'chatStreamStart',
   CHAT_STREAM_CHUNK = 'chatStreamChunk',
   CHAT_STREAM_END = 'chatStreamEnd',
-  CHAT_RETRY = 'chatRetry',
+  CHAT_UNDO = 'chatUndo',
   CHAT_AGENT_STEP = 'chatAgentStep',
   CHAT_APPROVAL_UPDATE = 'chatApprovalUpdate',
   CHAT_CHUNK_ACK = 'chatChunkAck',
@@ -103,6 +103,7 @@ export interface StoredMessage {
   imageDescriptions?: string[]; // Cached descriptions for fallback/memory
   files?: any[]; // Lightweight file metadata (name, path) without large content
   agentSteps?: any[]; // Metadata/tool calls/thinking steps associated with this message
+  tokensUsed?: number;
 }
 
 
@@ -112,7 +113,9 @@ export interface Conversation {
   timestamp: string; // Last modified time
   messages: StoredMessage[];
   agentId?: string;  // ID of the agent used for this chat
+  totalTokens?: number; // Total tokens used so far in this chat
 }
+
 
 export const COMMANDS = [
   { label: '@workspace', description: 'Search across workspace' },
