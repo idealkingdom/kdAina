@@ -1276,3 +1276,112 @@ body {
     color: var(--hub-text, #ccc);
     padding: 4px 8px;
 }
+
+/* New Agent Card Settings Grid & Subagent Styles */
+.agent-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.agent-setting-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.agent-setting-item.subagent-only-field {
+    animation: fadeIn 0.2s ease-out;
+}
+
+.agent-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 8px;
+}
+
+.badge-default {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--hub-text-muted);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge-workspace {
+    background: rgba(79, 172, 254, 0.12);
+    color: var(--hub-accent);
+    border: 1px solid rgba(79, 172, 254, 0.2);
+}
+
+.agent-card.readonly {
+    opacity: 0.85;
+    border-style: dashed;
+}
+
+.agent-card.readonly:hover {
+    border-color: var(--hub-border);
+    box-shadow: none;
+    transform: none;
+}
+
+.agent-checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--hub-text);
+    user-select: none;
+    margin-top: 18px; /* Vertically align with other fields */
+}
+
+.agent-checkbox-label input[type="checkbox"] {
+    accent-color: var(--hub-accent);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.agent-model-select {
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: var(--hub-font);
+    border-radius: var(--hub-radius-sm);
+    border: 1px solid var(--hub-input-border);
+    background: var(--hub-input-bg);
+    color: var(--hub-input-fg);
+    outline: none;
+    cursor: pointer;
+}
+
+.agent-model-select:focus {
+    border-color: var(--hub-accent);
+}
+
+.agent-budget-input {
+    width: 100%;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: var(--hub-font-mono);
+    border-radius: var(--hub-radius-sm);
+    border: 1px solid var(--hub-input-border);
+    background: var(--hub-input-bg);
+    color: var(--hub-input-fg);
+    outline: none;
+}
+
+.agent-budget-input:focus {
+    border-color: var(--hub-accent);
+}
+
+.rules-warning-banner {
+    animation: fadeIn 0.25s ease-out;
+}
+

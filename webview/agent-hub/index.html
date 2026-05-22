@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Hub</title>
   <link rel="stylesheet" type="text/css" href="agent-hub.css">
+  <script>
+    // Injected models list
+    window.VS_MODELS = "{{MODELS}}";
+  </script>
   <script src="agent-hub.js" defer></script>
 </head>
 <body>
@@ -20,10 +24,6 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         Agents
       </button>
-      <button class="hub-tab" data-tab="sources" id="tab-sources">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/></svg>
-        Sources
-      </button>
       <button class="hub-tab" data-tab="rules" id="tab-rules">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         Rules
@@ -31,64 +31,14 @@
     </nav>
   </header>
 
-  <!-- ─── SOURCES TAB ─────────────────────────────────────────────────── -->
   <main class="hub-content">
-    <section id="panel-sources" class="hub-panel">
-
-      <!-- Add Source Section -->
-      <div class="add-source-section">
-        <h2 class="section-title">Add Source</h2>
-        <div class="add-source-row">
-          <div class="url-input-group">
-            <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-            <input type="url" id="url-input" class="hub-input" placeholder="https://example.com/docs" autocomplete="off" spellcheck="false">
-          </div>
-          <button class="hub-btn primary" id="btn-add-url" title="Add URL">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-            Add URL
-          </button>
-          <button class="hub-btn secondary" id="btn-upload-doc" title="Upload Document">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Upload File
-          </button>
-        </div>
-      </div>
-
-      <!-- Search & Actions -->
-      <div class="sources-toolbar">
-        <div class="search-wrapper">
-          <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" id="search-input" class="hub-input search" placeholder="Search indexed content..." autocomplete="off" spellcheck="false">
-        </div>
-        <div class="toolbar-actions">
-          <button class="hub-btn ghost" id="btn-update-all" title="Update all indexed sources">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
-            Update All
-          </button>
-          <span class="source-count" id="source-count">0 sources</span>
-        </div>
-      </div>
-
-      <!-- Search Results -->
-      <div id="search-results" class="search-results hidden"></div>
-
-      <!-- Sources List -->
-      <div id="sources-list" class="sources-list">
-        <div class="empty-state" id="empty-state">
-          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="empty-icon"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/></svg>
-          <h3>No sources indexed</h3>
-          <p>Add URLs or upload documents to build your knowledge base.</p>
-        </div>
-      </div>
-
-    </section>
 
     <!-- ─── AGENTS TAB ──────────────────────────────────────────────── -->
     <section id="panel-agents" class="hub-panel active">
       <div class="agents-header-row">
         <div>
           <h2 class="section-title">Agent Profiles</h2>
-          <p class="section-desc">Define custom agent identities, system prompts, and link knowledge sources. <span style="opacity:0.6;font-size:0.8em;">💡 Changes auto-save when you click away from a field.</span></p>
+          <p class="section-desc">Define custom agent identities, system prompts, and subagent delegation settings. Default agents are read-only; custom workspace agents are editable.</p>
         </div>
         <button class="hub-btn primary" id="btn-add-agent">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
@@ -103,17 +53,23 @@
         <div class="empty-state" id="agents-empty">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="empty-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           <h3>No agent profiles</h3>
-          <p>Create agents with custom system prompts and linked knowledge sources.</p>
+          <p>Create agents with custom settings and system prompts.</p>
         </div>
       </div>
     </section>
 
     <!-- ─── RULES TAB ──────────────────────────────────────────────── -->
     <section id="panel-rules" class="hub-panel">
+      <!-- Rules Warning Banner -->
+      <div class="rules-warning-banner" style="display: flex; align-items: flex-start; background: rgba(255, 165, 0, 0.1); border: 1px solid rgba(255, 165, 0, 0.2); padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; line-height: 1.4; color: var(--vscode-notificationsWarning-foreground, #cca700);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px; flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span><strong>Rule limits:</strong> Keep rules modular and concise. Avoid creating massive single files; instead, break them down into separate files to prevent system prompt bloat and context window overload.</span>
+      </div>
+
       <div class="agents-header-row">
         <div>
           <h2 class="section-title">Rules</h2>
-          <p class="section-desc">Define reusable rules and instructions. Link them to agents or apply globally.</p>
+          <p class="section-desc">Define instructions and coding standards. Default rules are read-only; custom rules can be added per workspace.</p>
         </div>
         <button class="hub-btn primary" id="btn-add-rule">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
@@ -128,30 +84,12 @@
         <div class="empty-state" id="rules-empty">
           <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="empty-icon"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           <h3>No rules defined</h3>
-          <p>Create rules to enforce coding standards, style guides, or custom instructions for your agents.</p>
+          <p>Create rules to enforce coding standards, style guides, or custom instructions.</p>
         </div>
       </div>
     </section>
 
   </main>
-
-  <!-- ─── CONTENT VIEWER OVERLAY ────────────────────────────────────── -->
-  <div id="content-viewer" class="content-viewer-overlay hidden">
-    <div class="content-viewer-panel">
-      <div class="content-viewer-header">
-        <div class="content-viewer-title-row">
-          <h3 id="viewer-title">Source Content</h3>
-          <div class="content-viewer-meta" id="viewer-meta"></div>
-        </div>
-        <button class="hub-btn icon-only" id="btn-close-viewer" title="Close">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-        </button>
-      </div>
-      <div class="content-viewer-body" id="viewer-body">
-        <pre id="viewer-content"></pre>
-      </div>
-    </div>
-  </div>
 
   <!-- Modern Client-Side Modal -->
   <div id="customModal" class="modal-overlay hidden">
