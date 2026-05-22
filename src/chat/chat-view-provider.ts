@@ -92,13 +92,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         SettingsManager.onDidUpdateSettings((updated) => {
             this.postMessage({ command: 'uiSettingsUpdate', ui: updated.ui });
             this.postMessage({ command: 'generalSettingsUpdate', general: updated.general });
-            this.postMessage({ command: 'agentsUpdate', agents: updated.prompts || [] });
             this.postMessage({ 
                 command: 'modelsUpdate', 
                 models: updated.models, 
                 customModels: updated.customModels,
                 availableModels: getModelProviderOptions()
             });
+        });
+
+        const { FileConfigService } = require('../services/file-config-service');
+        FileConfigService.getInstance().onDidUpdateAgents((agents: any) => {
+            this.postMessage({ command: 'agentsUpdate', agents });
         });
 
         // #9: File save status listener
@@ -215,17 +219,18 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         });
 
         const logoUri = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'webview', 'assets', 'logo.png'));
-        html = html.replace('{{LOGO_URI}}', logoUri.toString());
+        html = html.replace(/{{LOGO_URI}}/g, logoUri.toString());
 
         const settingsManager = new SettingsManager(this.context);
         const settings = settingsManager.getSettings();
 
+        const { FileConfigService } = require('../services/file-config-service');
         const SHARED_CONSTANTS = JSON.stringify({
             CHAT_COMMANDS: CHAT_COMMANDS,
             ROLE: ROLE,
             COMMANDS: COMMANDS,
             WORKFLOWS: WORKFLOWS,
-            AGENTS: settings.prompts || [],
+            AGENTS: FileConfigService.getInstance().getAgents(),
             MODELS: settings.models,
             AVAILABLE_MODELS: getModelProviderOptions(),
             CUSTOM_MODELS: settings.customModels || [],
