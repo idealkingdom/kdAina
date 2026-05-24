@@ -62,6 +62,24 @@ export function activate(context: vscode.ExtensionContext) {
         outputChannel.appendLine(`[Migration] Migrated settings from ${legacyKey} → ${newKey}`);
     }
 
+    // Clean break: delete legacy inline prompts and rules from customSettings
+    const storedSettings = context.globalState.get<any>(newKey);
+    if (storedSettings) {
+        let changed = false;
+        if ('prompts' in storedSettings) {
+            delete storedSettings.prompts;
+            changed = true;
+        }
+        if ('rules' in storedSettings) {
+            delete storedSettings.rules;
+            changed = true;
+        }
+        if (changed) {
+            context.globalState.update(newKey, storedSettings);
+            outputChannel.appendLine(`[Migration] Cleared custom prompts and rules from globalState for clean break.`);
+        }
+    }
+
     // 2. Initialize the Webview Provider
     // The Provider now handles the Services (History/Core) internally
     const provider = ChatViewProvider.getInstance(context);
