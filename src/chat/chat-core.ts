@@ -117,7 +117,7 @@ export class ChatCoreService {
         agentId?: string
     }, onChunk?: (text: string) => Promise<void> | void,
         onAgentStep?: (step: AgentStepEvent) => void,
-        onUsageUpdate?: (usage: any) => void): Promise<{ text: string, usage?: any, hitStepLimit?: boolean, continuationMaxSteps?: number }> {
+        onUsageUpdate?: (usage: any) => void): Promise<{ text: string, usage?: any, hitStepLimit?: boolean, continuationMaxSteps?: number, toolsDisabledWarning?: boolean }> {
 
         const hasImages = data.images && Array.isArray(data.images) && data.images.length > 0;
 
@@ -131,6 +131,7 @@ export class ChatCoreService {
 
         let aiResponseText = "";
         let totalUsage: any = null;
+        let toolsDisabledWarning = false;
 
         const conversation = this.historyService.getConversation(data.chat_id);
         const previousTokens = conversation?.totalTokens || 0;
@@ -309,6 +310,19 @@ export class ChatCoreService {
 
             // ─── DETERMINE MODE: AGENTIC vs STANDARD ────────────────────────
             const isAgenticMode = this.isAgenticAgent(data.agentId, appSettings);
+            toolsDisabledWarning = false;
+            if (isAgenticMode) {
+                const tools = appSettings.tools || {};
+                if (
+                    tools.sys_tools === 'off' &&
+                    tools.web_tools === 'off' &&
+                    tools.cognitive_tools === 'off' &&
+                    tools.artifact_tools === 'off' &&
+                    tools.browser_tools === 'off'
+                ) {
+                    toolsDisabledWarning = true;
+                }
+            }
 
             const trackingOnAgentStep = (step: any) => {
                 // Coalesce thinking chunks to prevent history bloat and UI hangs
@@ -399,7 +413,7 @@ export class ChatCoreService {
             ReviewManager.getInstance().setActiveMessageContext(null, null);
         }
 
-        return { text: aiResponseText, usage: totalUsage, hitStepLimit, continuationMaxSteps };
+        return { text: aiResponseText, usage: totalUsage, hitStepLimit, continuationMaxSteps, toolsDisabledWarning };
     }
 
     /**
@@ -668,9 +682,8 @@ CONTEXT PRIORITY:
 - Do NOT re-execute, re-explain, or revisit completed tasks from earlier messages unless the user explicitly asks.
 - Treat prior assistant responses as already-delivered work. Your job is the NEW request.`;
 
-        // Conditionally inject browser tools documentation into system prompt
-        if (settings.permissions?.enableBrowserTools !== false) {
-            agenticSystemPrompt += `
+        // Inject browser tools documentation into system prompt
+        agenticSystemPrompt += `
 
 BROWSER TOOLS (for web testing & visual QA):
 - browser_open: Navigate to a URL in a real browser
@@ -682,12 +695,18 @@ BROWSER TOOLS (for web testing & visual QA):
 BROWSER WORKFLOW: open → snapshot → action → snapshot → verify → close
 ALWAYS snapshot before interacting. Use refs (@eN) from the LATEST snapshot only.
 For forms: use fill (clears input first), not type (appends). Re-snapshot after actions.`;
-        }
 
 
         // Resolve and inject rules from FileConfigService
         const rules = FileConfigService.getInstance().getRules();
-        const allRules = rules.filter(r => r.content.trim() !== '');
+        const allRules = rules.filter(r => {
+            if (r.content.trim() === '') return false;
+            if (r.scope === 'disabled') return false;
+            if (r.scope === 'agent') {
+                return Array.isArray(agent?.rules) && agent.rules.includes(r.id);
+            }
+            return true; // global
+        });
 
         const rulesSection = allRules.length > 0
             ? `\n\n--- APPLIED RULES ---\n${allRules.map(r => `[${r.name}]: ${r.content}`).join('\n')}\n`
@@ -697,10 +716,40 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
 
         const contextMode = settings.general?.contextMode || 'compact';
 
-        // Build payload
+        // ─── TOKEN SAVER: Rolling summary with cheap model ───────────────
+        // If conversation has 20+ messages, use a cheap model to generate
+        // a compressed summary. On subsequent turns, incrementally update
+        // the summary with new messages. This saves tokens on the main model
+        // and triggers prefix caching since the summary stays stable.
+        const conversation = this.historyService.getConversation(data.chat_id);
+        let summaryBlock = '';
+        if (conversation) {
+            const totalMsgs = conversation.messages.length;
+            const TOKEN_SAVER_THRESHOLD = 5;
+
+            if (totalMsgs >= TOKEN_SAVER_THRESHOLD) {
+                try {
+                    const updatedSummary = await this.runTokenSaver(
+                        data.chat_id, conversation, settings
+                    );
+                    if (updatedSummary) {
+                        summaryBlock = `\n--- CONVERSATION SUMMARY (compacted by Token Saver) ---\n${updatedSummary}\n--- END SUMMARY ---\n`;
+                    }
+                } catch (e) {
+                    outputChannel.appendLine(`[TokenSaver] Error: ${e}`);
+                    // Non-fatal — continue without summary
+                }
+            }
+        }
+
+        // Build payload — inject summary as a stable cacheable prefix
+        const compactedContext = this.compactMessages(
+            contextMessages, contextMode,
+            conversation?.compactedSummary ? true : false
+        );
         const messages = [
-            { role: 'system' as const, content: finalSystemPrompt },
-            ...this.compactMessages(contextMessages, contextMode),
+            { role: 'system' as const, content: finalSystemPrompt + summaryBlock },
+            ...compactedContext,
             { role: 'user' as const, content: currentMessage }
         ];
 
@@ -736,7 +785,8 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
             readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
             writeFilesConfirmation: alwaysProceed ? false : (settings.permissions?.writeFilesConfirmation ?? true),
             commandSafetyMode: alwaysProceed ? 'none' : (settings.permissions?.commandSafetyMode ?? 'smart'),
-            enableBrowserTools: settings.permissions?.enableBrowserTools !== false,
+            enableBrowserTools: true,
+            allowedTools: agent?.tools,
             onApprovalRequest: async (toolCallId, toolName, args, opts) => {
                 if (abortSignal?.aborted) {
                     return;
@@ -777,12 +827,29 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                     return { error: `Subagent "${params.agentName}" is disabled or not callable.` };
                 }
 
+                // Validate if subagent is linked to parent agent
+                const allowedSubagents = Array.isArray(agent?.subagents)
+                    ? agent.subagents
+                    : (agent?.id === 'architect' ? ['action', 'browser'] : (agent?.id === 'action' ? ['browser'] : []));
+
+                if (!allowedSubagents.includes(targetAgent.id)) {
+                    outputChannel.appendLine(`[Agentic] Subagent "${params.agentName}" is not linked to active agent "${agent?.name || 'unknown'}".`);
+                    return { error: `Subagent "${params.agentName}" is not linked to agent "${agent?.name || 'unknown'}" and cannot be called.` };
+                }
+
                 // Use the agent's prompt template as system prompt
                 const subSystemPrompt = targetAgent.content || "You are an expert AI assistant.";
 
                 // Resolve and inject rules from FileConfigService
                 const subRules = FileConfigService.getInstance().getRules();
-                const subAllRules = subRules.filter(r => r.content.trim() !== '');
+                const subAllRules = subRules.filter(r => {
+                    if (r.content.trim() === '') return false;
+                    if (r.scope === 'disabled') return false;
+                    if (r.scope === 'agent') {
+                        return Array.isArray(targetAgent?.rules) && targetAgent.rules.includes(r.id);
+                    }
+                    return true; // global
+                });
                 const subRulesSection = subAllRules.length > 0
                     ? `\n\n--- APPLIED RULES ---\n${subAllRules.map(r => `[${r.name}]: ${r.content}`).join('\n')}\n`
                     : '';
@@ -834,8 +901,7 @@ WORKFLOW:
 9. Call verify_completion at the END to confirm all items were addressed
 `;
 
-                if (settings.permissions?.enableBrowserTools !== false) {
-                    subAgenticSystemPrompt += `
+                subAgenticSystemPrompt += `
 
 BROWSER TOOLS (for web testing & visual QA):
 - browser_open: Navigate to a URL in a real browser
@@ -847,7 +913,6 @@ BROWSER TOOLS (for web testing & visual QA):
 BROWSER WORKFLOW: open → snapshot → action → snapshot → verify → close
 ALWAYS snapshot before interacting. Use refs (@eN) from the LATEST snapshot only.
 For forms: use fill (clears input first), not type (appends). Re-snapshot after actions.`;
-                }
 
                 const subFinalSystemPrompt = subAgenticSystemPrompt + subRulesSection;
 
@@ -906,8 +971,9 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                     readFilesConfirmation: alwaysProceed ? false : (settings.permissions?.readFilesConfirmation ?? false),
                     writeFilesConfirmation: alwaysProceed ? false : (settings.permissions?.writeFilesConfirmation ?? true),
                     commandSafetyMode: alwaysProceed ? 'none' : (settings.permissions?.commandSafetyMode ?? 'smart'),
-                    enableBrowserTools: settings.permissions?.enableBrowserTools !== false,
+                    enableBrowserTools: true,
                     isSubagent: true, // Block recursive delegate_research calls
+                    allowedTools: targetAgent?.tools,
                     onApprovalRequest: async (toolCallId, toolName, args, opts) => {
                         if (abortSignal?.aborted) return;
                         if (onAgentStep) {
@@ -938,8 +1004,9 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                     } as any);
                 }
 
+                let subStepCount = 0;
+                const subProgressLog: string[] = [];
                 try {
-                    let subStepCount = 0;
                     const result = await aiAgenticRequest(
                         subMessages, subModel, subApiKey, subTemp, subActiveProvider, subTools,
                         {
@@ -961,6 +1028,7 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                                 subStepBudget.current = subStepCount;
                                 if (event.toolCalls && event.toolCalls.length > 0) {
                                     for (const tc of event.toolCalls) {
+                                        subProgressLog.push(`Called tool "${tc.toolName}"`);
                                         if (onAgentStep) {
                                             onAgentStep({
                                                 type: 'tool_call' as any,
@@ -970,6 +1038,13 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                                                 result: tc.result
                                             } as any);
                                         }
+                                    }
+                                }
+                                if (event.toolResults && event.toolResults.length > 0) {
+                                    for (const tr of event.toolResults) {
+                                        const rawResult = tr.result !== undefined ? tr.result : (tr as any).output;
+                                        const summarized = this.summarizeToolResult(rawResult);
+                                        subProgressLog.push(`Tool "${tr.toolName}" returned: ${JSON.stringify(summarized).substring(0, 150)}...`);
                                     }
                                 }
                             }
@@ -983,7 +1058,12 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                             text: `\n[Subagent "${targetAgent.name}" finished research.]\n`
                         } as any);
                     }
-                    return { result: result.text };
+                    let textResult = await result.text;
+                    if (subStepCount >= subMaxSteps) {
+                        outputChannel.appendLine(`[Agentic] Subagent "${targetAgent.name}" step budget reached (${subStepCount}/${subMaxSteps}). Returning partial results.`);
+                        textResult = `[Subagent Step Budget Exhausted (${subStepCount}/${subMaxSteps} steps). Progress summary:\n- ${subProgressLog.join('\n- ')}\n\nPartial result: ${textResult || 'No text response generated.'}]`;
+                    }
+                    return { result: textResult };
                 } catch (e: any) {
                     outputChannel.appendLine(`[Agentic] Subagent run failed: ${e}`);
                     if (onAgentStep) {
@@ -992,7 +1072,10 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
                             text: `\n[Subagent "${targetAgent.name}" failed: ${e.message || e}]\n`
                         } as any);
                     }
-                    return { error: `Subagent run failed: ${e.message || e}` };
+                    const progressSummary = subProgressLog.length > 0
+                        ? `\nProgress before error:\n- ${subProgressLog.join('\n- ')}`
+                        : '';
+                    return { result: `[Subagent failed: ${e.message || e}.${progressSummary}]` };
                 }
             }
         });
@@ -1565,6 +1648,121 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
         }
     }
 
+    // ─── TOKEN SAVER: Cheap model summarization ──────────────────────────
+    /**
+     * Token Saver: Generates or incrementally updates a rolling conversation summary.
+     * Uses the model assigned to the "token-saver" agent in Agent Hub.
+     * 
+     * Flow:
+     * 1. First trigger (no existing summary): Summarize messages 0..N into a digest
+     * 2. Subsequent triggers: Send existing summary + new messages → updated summary
+     * 
+     * The summary is stored on the conversation and stays stable across turns,
+     * enabling prompt prefix caching on providers that support it.
+     */
+    private async runTokenSaver(
+        chatId: string,
+        conversation: any,
+        settings: any
+    ): Promise<string | null> {
+        const existingSummary = conversation.compactedSummary || '';
+
+        // Resolve Token Saver agent from config
+        const tokenSaverAgent = FileConfigService.getInstance().getAgents().find((a: any) => a.id === 'token-saver');
+        if (!tokenSaverAgent || !tokenSaverAgent.isActive) {
+            return existingSummary || null;
+        }
+
+        // Use the model assigned in Agent Hub, fallback to main text model
+        const saverModel = tokenSaverAgent.model || settings.models?.textModel;
+        if (!saverModel) {
+            outputChannel.appendLine(`[TokenSaver] No model configured — skipping`);
+            return existingSummary || null;
+        }
+
+        // Resolve provider + API key (same pattern as subagent resolution)
+        const { getModelProviderOptions } = require('../constants');
+        const providerOptions = getModelProviderOptions();
+        const globalProvider = settings.models?.provider || 'OpenAI';
+
+        let saverProvider = globalProvider;
+        let saverBaseUrl = '';
+        for (const [pName, pData] of Object.entries(providerOptions)) {
+            const p = pData as any;
+            if (p.models?.text?.includes(saverModel)) {
+                saverProvider = pName;
+                saverBaseUrl = p.baseUrl || '';
+                break;
+            }
+        }
+
+        const customModel = (settings.customModels || []).find((m: any) => m.name === saverModel);
+        const providerConfig = settings.models?.providerSettings?.[saverProvider];
+        let apiKey = customModel?.apiKey || providerConfig?.apiKey || settings.models?.apiKey || '';
+        if (!apiKey) {
+            const config = vscode.workspace.getConfiguration('kdaina');
+            apiKey = config.get<string>('accessToken') || '';
+        }
+        if (!apiKey) {
+            outputChannel.appendLine(`[TokenSaver] No API key for ${saverModel} — skipping`);
+            return existingSummary || null;
+        }
+
+        const totalMsgs = conversation.messages.length;
+        const compactedUpTo = conversation.compactedUpTo || 0;
+        const KEEP_RECENT = 4;
+        const compactEnd = Math.max(0, totalMsgs - KEEP_RECENT);
+
+        if (compactEnd <= compactedUpTo) {
+            return existingSummary || null;
+        }
+
+        const saverPrompt = tokenSaverAgent.content || 'Summarize the following conversation concisely, preserving key decisions, file paths, and technical details.';
+
+        const newMessages = conversation.messages.slice(compactedUpTo, compactEnd);
+        const formattedMsgs = newMessages.map((m: any) => {
+            const role = m.role === 'bot' ? 'assistant' : 'user';
+            let content = m.message || '';
+            if (content.length > 3000) {
+                content = content.substring(0, 2000) + '\n... (truncated) ...\n' + content.substring(content.length - 1000);
+            }
+            return `[${role}]: ${content}`;
+        }).join('\n\n');
+
+        const userContent = existingSummary
+            ? `Here is the existing conversation summary:\n\n${existingSummary}\n\n---\n\nHere are the NEW messages to incorporate into the summary:\n\n${formattedMsgs}\n\nUpdate the summary to include the new information. Keep the same format. Do not repeat information already in the summary.`
+            : `Here is the conversation to summarize:\n\n${formattedMsgs}`;
+
+        outputChannel.appendLine(`[TokenSaver] Running: model=${saverModel} (${saverProvider}), msgs=${compactedUpTo}→${compactEnd} (${newMessages.length} new)`);
+
+        try {
+            const result = await aiRequest(
+                [
+                    { role: 'system', content: saverPrompt },
+                    { role: 'user', content: userContent }
+                ],
+                saverModel,
+                apiKey,
+                tokenSaverAgent.temperature ?? 0.1,
+                saverProvider,
+                saverBaseUrl
+            );
+
+            const summary = result.content?.trim();
+            if (summary && summary.length > 50) {
+                await this.historyService.updateSummary(chatId, summary, compactEnd);
+                outputChannel.appendLine(`[TokenSaver] Summary updated: ${summary.length} chars, compactedUpTo=${compactEnd}`);
+                return summary;
+            } else {
+                outputChannel.appendLine(`[TokenSaver] Summary too short — keeping existing`);
+                return existingSummary || null;
+            }
+        } catch (e) {
+            outputChannel.appendLine(`[TokenSaver] API call failed: ${e}`);
+            return existingSummary || null;
+        }
+    }
+
     /**
      * Tiered Sliding Window: Manages context size to prevent unbounded growth.
      * Also deduplicates system prompts (#47) to save context tokens.
@@ -1582,7 +1780,7 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
      * 
      * System messages are always kept (but deduplicated).
      */
-    private compactMessages(messages: any[], mode: 'compact' | 'full' = 'compact'): any[] {
+    private compactMessages(messages: any[], mode: 'compact' | 'full' = 'compact', hasSummary: boolean = false): any[] {
 
         // --- Pass 1: Deduplicate system messages ---
         const seenSystemContents = new Set<string>();
@@ -1611,8 +1809,9 @@ For forms: use fill (clears input first), not type (appends). Re-snapshot after 
             const nonSystemMsgs = conversational.filter(m => m.role !== 'system');
 
             // Keep last 4 non-system messages (2 background context + 2 active)
+            // When Token Saver summary is present, skip background entirely — summary covers it
             const ACTIVE_COUNT = 2;
-            const CONTEXT_COUNT = 2;
+            const CONTEXT_COUNT = hasSummary ? 0 : 2;
             const totalKeep = ACTIVE_COUNT + CONTEXT_COUNT;
 
             const kept = nonSystemMsgs.slice(-totalKeep);
