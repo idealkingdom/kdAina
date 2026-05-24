@@ -1,5 +1,5 @@
 ---
-name: Action
+name: Action (Fast)
 temperature: 0.15
 isDefault: true
 ---
