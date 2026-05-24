@@ -7,9 +7,19 @@ import * as path from 'path';
 export const EXTENSION_NAME = 'kdaina';
 export const DISPLAY_NAME = 'kdAina';
 
+/**
+ * Known built-in provider keys (used only as fallback defaults).
+ * Custom providers can be added by placing a YAML file in .kdaina/providers/
+ * — no code changes or enum additions required.
+ */
 export enum MODEL_PROVIDER {
     OPEN_AI = 'OpenAI',
-    GEMINI = 'Gemini'
+    GEMINI = 'Gemini',
+    ANTHROPIC = 'Anthropic',
+    MISTRAL = 'Mistral',
+    OPENROUTER = 'OpenRouter',
+    DEEPINFRA = 'DeepInfra',
+    GROQ = 'Groq'
 }
 
 export interface PromptDef {
@@ -53,7 +63,6 @@ export interface AppSettings {
         commandSafetyMode: 'all' | 'smart' | 'dangerous' | 'none';
         alwaysProceed?: boolean;
         enableTerminalSandbox?: boolean;
-        enableBrowserTools?: boolean;
         newChatSessionPlacement?: 'window' | 'panel';
     };
     ui: {
@@ -67,15 +76,16 @@ export interface AppSettings {
     tools?: Record<string, 'always' | 'ask' | 'off'>;
 }
 
-export function getModelProviderOptions(): Record<string, { name: string; models: { text: string[]; image: string[] } }> {
+export function getModelProviderOptions(): Record<string, { name: string; baseUrl: string; models: { text: string[]; image: string[] } }> {
     try {
         const { FileConfigService } = require('./services/file-config-service');
         const providers = FileConfigService.getInstance().getProviders();
-        const result: Record<string, { name: string; models: { text: string[]; image: string[] } }> = {};
+        const result: Record<string, { name: string; baseUrl: string; models: { text: string[]; image: string[] } }> = {};
         for (const [name, p] of Object.entries(providers)) {
             const providerVal = p as any;
             result[name] = {
                 name: providerVal.name,
+                baseUrl: providerVal.baseUrl || '',
                 models: providerVal.models
             };
         }
@@ -89,6 +99,7 @@ export function getModelProviderOptions(): Record<string, { name: string; models
     return {
         "OpenAI": {
             "name": "OpenAI",
+            "baseUrl": "https://api.openai.com/v1",
             "models": { "text": ["gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"], "image": ["dall-e-3"] }
         }
     };
