@@ -27,6 +27,7 @@ export interface ToolRegistryOptions {
     settings?: any;
     isSubagent?: boolean;
     onDelegateResearch?: (params: { agentName: string; prompt: string }) => Promise<any>;
+    allowedTools?: string[];
 }
 
 /**
@@ -43,7 +44,7 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
     const cognitiveTools = createCognitiveTools(options?.tier || 'mid', options?.chatId);
     const artifactTools = createArtifactTools(options?.chatId || 'unknown_chat');
 
-    const browserTools = options?.enableBrowserTools !== false ? createBrowserTools() : {};
+    const browserTools = createBrowserTools();
 
     // Subagent tool
     const delegateResearchTool = {
@@ -75,6 +76,20 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
         ...delegateResearchTool
     };
 
+    let filteredTools = allTools;
+    if (options?.allowedTools) {
+        filteredTools = {} as any;
+        for (const key of options.allowedTools) {
+            if ((allTools as any)[key]) {
+                (filteredTools as any)[key] = (allTools as any)[key];
+            }
+        }
+        // Always retain delegate_research for parent agents if allowed in their capabilities,
+        // but if not explicitly in allowedTools, let's make sure they can only call it if it was linked.
+        // Actually, delegate_research is just a normal tool. If they don't have delegate_research in allowedTools,
+        // it gets filtered out, which is exactly correct!
+    }
+
     // Tool categories keys
     const fileToolsKeys = ['list_workspace', 'read_file_skeleton', 'read_line_range', 'find_symbol', 'search_workspace', 'get_workspace_problems', 'chunk_replace', 'create_file', 'get_workspace_essence'];
     const sysToolsKeys = ['run_command', 'stop_background_process', 'list_background_processes', 'get_background_output'];
@@ -84,8 +99,8 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
     const browserToolsKeys = ['browser_open', 'browser_snapshot', 'browser_action', 'browser_get', 'browser_evaluate', 'browser_close'];
 
     // Wrap all execute functions to apply settings controls & stepBudget increments
-    Object.keys(allTools).forEach((key) => {
-        const toolDef = (allTools as any)[key];
+    Object.keys(filteredTools).forEach((key) => {
+        const toolDef = (filteredTools as any)[key];
         const originalExecute = toolDef.execute;
 
         if (originalExecute) {
@@ -170,7 +185,7 @@ export function createToolRegistry(workspaceIndex: WorkspaceIndexService, option
         }
     });
 
-    return allTools;
+    return filteredTools;
 }
 
 /**
