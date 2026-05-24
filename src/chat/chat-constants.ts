@@ -89,7 +89,31 @@ export enum CHAT_COMMANDS {
   CHAT_OPEN_FILE = 'chatOpenFile',
   CHAT_STATE_REHYDRATE = 'chatStateRehydrate',
   CHAT_CONTINUE_PROMPT = 'chatContinuePrompt',
-  CHAT_CONTINUE = 'chatContinue'
+  CHAT_CONTINUE = 'chatContinue',
+
+  // Standardized commands
+  DETACH_CHAT = 'detachChat',
+  SEARCH_WORKSPACE_FILES = 'searchWorkspaceFiles',
+  SAVE_SETTINGS = 'saveSettings',
+  UPDATE_NESTED_SETTING = 'updateNestedSetting',
+  UPDATE_CATEGORY_SETTINGS = 'updateCategorySettings',
+  REQUEST_MODELS = 'requestModels',
+  SCRAPE_URL = 'scrapeUrl',
+  CANCEL_CHAT_REQUEST = 'cancelChatRequest',
+  OPEN_FILE = 'openFile',
+  OPEN_ARTIFACT = 'openArtifact',
+  OPEN_VIRTUAL_FILE = 'openVirtualFile',
+  OPEN_EXTERNAL = 'openExternal',
+  ADD_FILE_BY_PATH = 'addFileByPath',
+  CHAT_TOOL_APPROVAL = 'chatToolApproval',
+  CHAT_REVIEW_DIFF = 'chatReviewDiff',
+  ACCEPT_FILE = 'acceptFile',
+  REJECT_FILE = 'rejectFile',
+  REFRESH_INDEX = 'refreshIndex',
+  VIEW_INDEX = 'viewIndex',
+  IMPROVE_PROMPT = 'improvePrompt',
+  SUGGEST_PROMPTS = 'suggestPrompts',
+  CHECK_ESSENCE_STATUS = 'checkEssenceStatus'
 }
 
 
@@ -114,6 +138,10 @@ export interface Conversation {
   messages: StoredMessage[];
   agentId?: string;  // ID of the agent used for this chat
   totalTokens?: number; // Total tokens used so far in this chat
+  /** Rolling AI-generated summary of older messages (produced by Token Saver) */
+  compactedSummary?: string;
+  /** Number of messages already compacted into the summary */
+  compactedUpTo?: number;
 }
 
 
