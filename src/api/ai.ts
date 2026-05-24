@@ -20,7 +20,7 @@ function sanitizeUrl(url?: string): string | undefined {
     return cleaned.length > 0 ? cleaned : undefined;
 }
 
-function resolveModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
+function createProviderModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean, isAgentic?: boolean) {
     baseUrl = sanitizeUrl(baseUrl);
     if (provider === 'Gemini') {
         const google = createGoogleGenerativeAI({
@@ -46,6 +46,10 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
         compatibility: 'compatible', // Bypass strict OpenAI model validation whitelist
     };
 
+    if (isAgentic) {
+        opts.fetch = createOpenAIReasoningFetch();
+    }
+
     // Custom header support: some providers use non-standard auth headers
     if (apiKeyHeader && apiKeyHeader.trim()) {
         opts.apiKey = 'sk-placeholder'; // SDK requires a non-empty key
@@ -57,7 +61,23 @@ function resolveModel(provider: string, model: string, apiKey: string, baseUrl?:
     const openai = createOpenAI(opts);
     // Explicitly use .chat() to force the /chat/completions endpoint
     // Otherwise Vercel AI SDK defaults to the /responses API which most proxies do not support
-    return openai.chat(model);
+    const resolved = openai.chat(model);
+
+    if (isAgentic) {
+        // Most third-party open reasoning models (DeepSeek R1, Kimi, etc.) 
+        // output their reasoning inside <think> tags. We use the middleware 
+        // to automatically parse this into native reasoning-delta events.
+        return wrapLanguageModel({
+            model: resolved,
+            middleware: extractReasoningMiddleware({ tagName: 'think' })
+        });
+    }
+
+    return resolved;
+}
+
+function resolveModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
+    return createProviderModel(provider, model, apiKey, baseUrl, apiKeyHeader, azureStyle, false);
 }
 
 /**
@@ -305,47 +325,7 @@ function createOpenAIReasoningFetch() {
 }
 
 function resolveAgenticModel(provider: string, model: string, apiKey: string, baseUrl?: string, apiKeyHeader?: string, azureStyle?: boolean) {
-    baseUrl = sanitizeUrl(baseUrl);
-    if (provider === 'Gemini') {
-        const google = createGoogleGenerativeAI({
-            apiKey,
-            baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined
-        });
-        return google(model);
-    }
-
-    // Azure OpenAI — use the official @ai-sdk/azure provider
-    if (provider === 'Azure OpenAI' || azureStyle === true) {
-        return resolveAzureModel(model, apiKey, baseUrl, apiKeyHeader);
-    }
-
-    // Anthropic — use the official @ai-sdk/anthropic provider
-    if (provider === 'Anthropic') {
-        return resolveAnthropicModel(model, apiKey, baseUrl, apiKeyHeader);
-    }
-    const opts: any = {
-        baseURL: baseUrl && baseUrl.trim() !== '' ? baseUrl : undefined,
-        compatibility: 'compatible', // 'compatible' disables the SDK's internal vision model whitelist
-        fetch: createOpenAIReasoningFetch()
-    };
-
-    if (apiKeyHeader && apiKeyHeader.trim()) {
-        opts.apiKey = 'sk-placeholder';
-        opts.headers = { [apiKeyHeader.trim()]: apiKey };
-    } else {
-        opts.apiKey = apiKey;
-    }
-
-    const openai = createOpenAI(opts);
-    const resolved = openai.chat(model);
-
-    // Most third-party open reasoning models (DeepSeek R1, Kimi, etc.) 
-    // output their reasoning inside <think> tags. We use the middleware 
-    // to automatically parse this into native reasoning-delta events.
-    return wrapLanguageModel({
-        model: resolved,
-        middleware: extractReasoningMiddleware({ tagName: 'think' })
-    });
+    return createProviderModel(provider, model, apiKey, baseUrl, apiKeyHeader, azureStyle, true);
 }
 
 // ─── PUBLIC API ─────────────────────────────────────────────────────────────
