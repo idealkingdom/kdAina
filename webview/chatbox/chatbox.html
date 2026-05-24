@@ -71,6 +71,12 @@
           <span id="agent-question-text">Agent is asking a question — answer to proceed</span>
           <button id="dismiss-question-btn" class="dismiss-question-btn" aria-label="Dismiss">✕</button>
         </div>
+        <!-- Agent Tools Disabled Warning Banner -->
+        <div id="agent-warning-banner" class="agent-warning-banner hidden">
+          <span class="warning-icon">⚠️</span>
+          <span id="agent-warning-text">Tools are disabled — agent will run in chat-only mode without code editing or terminal access.</span>
+          <button id="dismiss-warning-btn" class="dismiss-warning-btn" aria-label="Dismiss">✕</button>
+        </div>
         <div id="chatMessages" class="chat-messages">
         </div>
       </main>
