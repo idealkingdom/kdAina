@@ -9,7 +9,7 @@ export interface RuleDef {
     id: string;
     name: string;
     content: string;
-    scope: 'global' | 'workspace' | 'assignable';
+    scope: 'global' | 'agent' | 'disabled';
     isDefault: boolean;
     filePath: string;
 }
@@ -124,6 +124,14 @@ export class FileConfigService {
                         const filePath = path.join(wsAgentsPath, file);
                         const parsed = this.parseAgentFile(filePath, false);
                         if (parsed) {
+                            const existing = agentsMap.get(parsed.id);
+                            if (existing && existing.isDefault) {
+                                parsed.order = existing.order;
+                                parsed.isBuiltinOverride = true;
+                                if (!parsed.description && existing.description) {
+                                    parsed.description = existing.description;
+                                }
+                            }
                             agentsMap.set(parsed.id, parsed);
                         }
                     }
@@ -159,13 +167,17 @@ export class FileConfigService {
                 id: filename,
                 name: metadata.name || this.filenameToTitle(filename),
                 content: body.trim(),
+                description: metadata.description || undefined,
                 temperature: metadata.temperature !== undefined ? metadata.temperature : 0.15,
                 isDefault,
                 isActive: metadata.active !== false,
                 callable: metadata.callable === true,
                 model: metadata.model || undefined,
                 stepBudget: metadata.stepBudget || undefined,
-                order: isDefault ? (filename === 'architect' ? 1 : 2) : 10,
+                tools: Array.isArray(metadata.tools) ? metadata.tools : undefined,
+                subagents: Array.isArray(metadata.subagents) ? metadata.subagents : undefined,
+                rules: Array.isArray(metadata.rules) ? metadata.rules : undefined,
+                order: metadata.order !== undefined ? Number(metadata.order) : (isDefault ? (filename === 'architect' ? 1 : 2) : 10),
                 filePath
             };
         } catch (e) {
@@ -174,7 +186,48 @@ export class FileConfigService {
         }
     }
 
-    public createAgent(name: string, content: string, temperature: number, callable?: boolean, model?: string, stepBudget?: number): string {
+    private parseRuleFile(filePath: string, isDefault: boolean): RuleDef | null {
+        try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            const filename = path.basename(filePath, '.md');
+            
+            // Parse frontmatter
+            const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+            let metadata: any = {};
+            let body = content;
+
+            if (match) {
+                try {
+                    metadata = yaml.load(match[1]) || {};
+                    body = match[2];
+                } catch (e) {
+                    outputChannel.appendLine(`[FileConfig] Error parsing frontmatter in ${filePath}: ${e}`);
+                }
+            }
+
+            const scope = metadata.scope || 'global';
+
+            let truncatedContent = body.trim();
+            if (truncatedContent.length > 2000) {
+                outputChannel.appendLine(`[FileConfig] Warning: Rule "${filename}" exceeds 2000 characters (${truncatedContent.length}). Truncating.`);
+                truncatedContent = truncatedContent.substring(0, 2000) + '...';
+            }
+
+            return {
+                id: filename,
+                name: metadata.name || this.filenameToTitle(filename),
+                content: truncatedContent,
+                scope: scope as 'global' | 'agent' | 'disabled',
+                isDefault,
+                filePath
+            };
+        } catch (e) {
+            outputChannel.appendLine(`[FileConfig] Error reading rule file ${filePath}: ${e}`);
+            return null;
+        }
+    }
+
+    public createAgent(name: string, content: string, temperature: number, callable?: boolean, model?: string, stepBudget?: number, tools?: string[], subagents?: string[], rules?: string[]): string {
         const id = this.titleToFilename(name);
         const ws = vscode.workspace.workspaceFolders?.[0];
         if (!ws) {
@@ -193,7 +246,10 @@ export class FileConfigService {
             active: true,
             callable: callable ?? false,
             model: model || undefined,
-            stepBudget: stepBudget || undefined
+            stepBudget: stepBudget || undefined,
+            tools: tools || undefined,
+            subagents: subagents || undefined,
+            rules: rules || undefined
         };
 
         const fileContent = `---\n${yaml.dump(frontmatter)}---\n${content}`;
@@ -246,6 +302,9 @@ export class FileConfigService {
         else if (field === 'callable') { metadata.callable = value; }
         else if (field === 'model') { metadata.model = value || undefined; }
         else if (field === 'stepBudget') { metadata.stepBudget = value || undefined; }
+        else if (field === 'tools') { metadata.tools = Array.isArray(value) ? value : undefined; }
+        else if (field === 'subagents') { metadata.subagents = Array.isArray(value) ? value : undefined; }
+        else if (field === 'rules') { metadata.rules = Array.isArray(value) ? value : undefined; }
 
         const fileContent = `---\n${yaml.dump(metadata)}---\n${body.trim()}`;
         fs.writeFileSync(agent.filePath, fileContent, 'utf8');
@@ -278,16 +337,10 @@ export class FileConfigService {
                 const files = fs.readdirSync(defaultsPath).filter(f => f.endsWith('.md'));
                 for (const file of files) {
                     const filePath = path.join(defaultsPath, file);
-                    const filename = path.basename(file, '.md');
-                    const content = fs.readFileSync(filePath, 'utf8').trim();
-                    rulesMap.set(filename, {
-                        id: filename,
-                        name: this.filenameToTitle(filename),
-                        content,
-                        scope: 'global',
-                        isDefault: true,
-                        filePath
-                    });
+                    const parsed = this.parseRuleFile(filePath, true);
+                    if (parsed) {
+                        rulesMap.set(parsed.id, parsed);
+                    }
                 }
             } catch (e) {
                 outputChannel.appendLine(`[FileConfig] Error reading default rules: ${e}`);
@@ -303,16 +356,10 @@ export class FileConfigService {
                     const files = fs.readdirSync(wsRulesPath).filter(f => f.endsWith('.md'));
                     for (const file of files) {
                         const filePath = path.join(wsRulesPath, file);
-                        const filename = path.basename(file, '.md');
-                        const content = fs.readFileSync(filePath, 'utf8').trim();
-                        rulesMap.set(filename, {
-                            id: filename,
-                            name: this.filenameToTitle(filename),
-                            content,
-                            scope: 'workspace', // Default scope for user-defined rules in workspace
-                            isDefault: false,
-                            filePath
-                        });
+                        const parsed = this.parseRuleFile(filePath, false);
+                        if (parsed) {
+                            rulesMap.set(parsed.id, parsed);
+                        }
                     }
                 } catch (e) {
                     outputChannel.appendLine(`[FileConfig] Error reading workspace rules: ${e}`);
@@ -336,7 +383,12 @@ export class FileConfigService {
         }
 
         const filePath = path.join(wsRulesPath, `${id}.md`);
-        fs.writeFileSync(filePath, content, 'utf8');
+        const frontmatter = {
+            name,
+            scope: 'global'
+        };
+        const fileContent = `---\n${yaml.dump(frontmatter)}---\n${content}`;
+        fs.writeFileSync(filePath, fileContent, 'utf8');
         this._onDidUpdateRules.fire(this.getRules());
         return id;
     }
@@ -359,16 +411,41 @@ export class FileConfigService {
             rule.isDefault = false;
         }
 
+        let content = '';
+        try {
+            content = fs.readFileSync(rule.filePath, 'utf8');
+        } catch (e) {
+            content = `---\nname: ${rule.name}\nscope: ${rule.scope}\n---\n${rule.content}`;
+        }
+
+        const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/);
+        let metadata: any = {};
+        let body = content;
+
+        if (match) {
+            try {
+                metadata = yaml.load(match[1]) || {};
+                body = match[2];
+            } catch (e) { }
+        }
+
         if (field === 'name') {
+            metadata.name = value;
             const newId = this.titleToFilename(value);
             const newPath = path.join(path.dirname(rule.filePath), `${newId}.md`);
-            if (fs.existsSync(rule.filePath)) {
-                fs.renameSync(rule.filePath, newPath);
-            } else {
-                fs.writeFileSync(newPath, rule.content, 'utf8');
+            const fileContent = `---\n${yaml.dump(metadata)}---\n${body.trim()}`;
+            fs.writeFileSync(newPath, fileContent, 'utf8');
+            if (fs.existsSync(rule.filePath) && rule.filePath !== newPath) {
+                fs.unlinkSync(rule.filePath);
             }
         } else if (field === 'content') {
-            fs.writeFileSync(rule.filePath, value, 'utf8');
+            body = value;
+            const fileContent = `---\n${yaml.dump(metadata)}---\n${body.trim()}`;
+            fs.writeFileSync(rule.filePath, fileContent, 'utf8');
+        } else if (field === 'scope') {
+            metadata.scope = value;
+            const fileContent = `---\n${yaml.dump(metadata)}---\n${body.trim()}`;
+            fs.writeFileSync(rule.filePath, fileContent, 'utf8');
         }
 
         this._onDidUpdateRules.fire(this.getRules());
@@ -458,6 +535,111 @@ export class FileConfigService {
             outputChannel.appendLine(`[FileConfig] Error parsing provider file ${filePath}: ${e}`);
             return null;
         }
+    }
+
+    // ─── PROVIDER CRUD ─────────────────────────────────────────────────
+
+    public createProvider(name: string, baseUrl: string): string {
+        const ws = vscode.workspace.workspaceFolders?.[0];
+        if (!ws) { throw new Error('No workspace folder open'); }
+        const wsProvidersPath = path.join(ws.uri.fsPath, '.kdaina', 'providers');
+        if (!fs.existsSync(wsProvidersPath)) {
+            fs.mkdirSync(wsProvidersPath, { recursive: true });
+        }
+        const id = this.titleToFilename(name);
+        const filePath = path.join(wsProvidersPath, `${id}.yaml`);
+        const content = yaml.dump({
+            name,
+            baseUrl,
+            models: { text: [], image: [] },
+            supportsReasoning: [],
+            tiers: {}
+        });
+        fs.writeFileSync(filePath, content, 'utf8');
+        this._onDidUpdateProviders.fire(this.getProviders());
+        return id;
+    }
+
+    public deleteProvider(id: string) {
+        const providers = this.getProviders();
+        const provider = Object.values(providers).find(p => p.id === id);
+        if (!provider) { throw new Error(`Provider ${id} not found`); }
+        if (provider.isDefault) { throw new Error('Cannot delete built-in provider'); }
+        if (fs.existsSync(provider.filePath)) {
+            fs.unlinkSync(provider.filePath);
+        }
+        this._onDidUpdateProviders.fire(this.getProviders());
+    }
+
+    public addModelToProvider(providerId: string, modelName: string, types: ('text' | 'image')[]) {
+        const providers = this.getProviders();
+        const provider = Object.values(providers).find(p => p.id === providerId);
+        if (!provider) { throw new Error(`Provider ${providerId} not found`); }
+
+        // Must clone to workspace if built-in
+        let filePath = provider.filePath;
+        if (provider.isDefault) {
+            const ws = vscode.workspace.workspaceFolders?.[0];
+            if (!ws) { throw new Error('No workspace folder open'); }
+            const wsProvidersPath = path.join(ws.uri.fsPath, '.kdaina', 'providers');
+            if (!fs.existsSync(wsProvidersPath)) {
+                fs.mkdirSync(wsProvidersPath, { recursive: true });
+            }
+            filePath = path.join(wsProvidersPath, `${providerId}.yaml`);
+            fs.copyFileSync(provider.filePath, filePath);
+        }
+
+        const content = fs.readFileSync(filePath, 'utf8');
+        const data = yaml.load(content) as any || {};
+        if (!data.models) { data.models = { text: [], image: [] }; }
+
+        for (const type of types) {
+            if (!Array.isArray(data.models[type])) { data.models[type] = []; }
+            if (!data.models[type].includes(modelName)) {
+                data.models[type].push(modelName);
+            }
+        }
+
+        fs.writeFileSync(filePath, yaml.dump(data), 'utf8');
+        this._onDidUpdateProviders.fire(this.getProviders());
+    }
+
+    public removeModelFromProvider(providerId: string, modelName: string) {
+        const providers = this.getProviders();
+        const provider = Object.values(providers).find(p => p.id === providerId);
+        if (!provider) { throw new Error(`Provider ${providerId} not found`); }
+
+        let filePath = provider.filePath;
+        if (provider.isDefault) {
+            const ws = vscode.workspace.workspaceFolders?.[0];
+            if (!ws) { throw new Error('No workspace folder open'); }
+            const wsProvidersPath = path.join(ws.uri.fsPath, '.kdaina', 'providers');
+            if (!fs.existsSync(wsProvidersPath)) {
+                fs.mkdirSync(wsProvidersPath, { recursive: true });
+            }
+            filePath = path.join(wsProvidersPath, `${providerId}.yaml`);
+            fs.copyFileSync(provider.filePath, filePath);
+        }
+
+        const content = fs.readFileSync(filePath, 'utf8');
+        const data = yaml.load(content) as any || {};
+        if (data.models) {
+            if (Array.isArray(data.models.text)) {
+                data.models.text = data.models.text.filter((m: string) => m !== modelName);
+            }
+            if (Array.isArray(data.models.image)) {
+                data.models.image = data.models.image.filter((m: string) => m !== modelName);
+            }
+        }
+        if (data.supportsReasoning && Array.isArray(data.supportsReasoning)) {
+            data.supportsReasoning = data.supportsReasoning.filter((m: string) => m !== modelName);
+        }
+        if (data.tiers && data.tiers[modelName]) {
+            delete data.tiers[modelName];
+        }
+
+        fs.writeFileSync(filePath, yaml.dump(data), 'utf8');
+        this._onDidUpdateProviders.fire(this.getProviders());
     }
 
     // ─── HELPERS ───────────────────────────────────────────────────────
