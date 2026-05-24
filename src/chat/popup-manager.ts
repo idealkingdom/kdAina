@@ -34,6 +34,12 @@ export class PopupManager {
         if (this._panels.size > 0) {
             const existingPanel = Array.from(this._panels)[0];
             existingPanel.reveal(existingPanel.viewColumn);
+            if (chatState?.chatId) {
+                existingPanel.webview.postMessage({
+                    command: 'loadChatInPopup',
+                    chatId: chatState.chatId
+                });
+            }
             return;
         }
 
