@@ -319,5 +319,19 @@ export class ChatHistoryService {
             };
         });
     }
+
+    /**
+     * Update the compacted summary for a conversation.
+     * Called by Token Saver after generating a rolling summary from a cheap model.
+     */
+    public async updateSummary(chatId: string, summary: string, compactedUpTo: number): Promise<void> {
+        const history = this.getHistory();
+        const chat = history.find(c => c.chat_id === chatId);
+        if (!chat) { return; }
+
+        chat.compactedSummary = summary;
+        chat.compactedUpTo = compactedUpTo;
+        await this.storage.update(ChatHistoryService.STORAGE_KEY, history);
+    }
 }
 
