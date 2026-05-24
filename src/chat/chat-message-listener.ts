@@ -17,6 +17,7 @@ import * as os from 'os';
 import * as crypto from 'crypto';
 import { SettingsManager } from '../services/settings-manager';
 import { ApprovalService } from "./approval-service";
+import { FileConfigService } from '../services/file-config-service';
 
 import { ReviewManager, PendingEdit } from "./review-manager";
 import { PopupManager } from "./popup-manager";
@@ -156,13 +157,13 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
             }
 
         // NEW SESSION — open a new independent chat session, keep current open
-        case 'detachChat': {
+        case CHAT_COMMANDS.DETACH_CHAT: {
             if (context) {
                 await PopupManager.openPopup(context, undefined);
             }
             break;
         }
-        case 'searchWorkspaceFiles':
+        case CHAT_COMMANDS.SEARCH_WORKSPACE_FILES:
             {
                 const query = message.data.query || '';
                 
@@ -188,9 +189,9 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
                 });
                 break;
             }
-        case 'saveSettings':
+        case CHAT_COMMANDS.SAVE_SETTINGS:
 
-        case 'updateNestedSetting': {
+        case CHAT_COMMANDS.UPDATE_NESTED_SETTING: {
             const { category, key, value } = message.data;
             const currentSettings = settingsManager.getSettings();
             if (currentSettings[category as keyof typeof currentSettings]) {
@@ -206,7 +207,7 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
             break;
         }
 
-        case 'updateCategorySettings': {
+        case CHAT_COMMANDS.UPDATE_CATEGORY_SETTINGS: {
             const { category, settings } = message.data;
             const currentSettings = settingsManager.getSettings();
             if (currentSettings[category as keyof typeof currentSettings]) {
@@ -217,7 +218,7 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
         }
 
         // Pull-based model refresh: chatbox requests fresh model data (e.g. when dropdown opens)
-        case 'requestModels': {
+        case CHAT_COMMANDS.REQUEST_MODELS: {
             const { getModelProviderOptions } = require('../constants');
             const latestSettings = settingsManager.getSettings();
             await post({
@@ -230,7 +231,7 @@ export async function chatMessageListener(message: any, sourceWebview?: vscode.W
         }
 
         // #46: Scrape a URL and return content to the frontend
-        case 'scrapeUrl': {
+        case CHAT_COMMANDS.SCRAPE_URL: {
             const { WebScraperService } = require('../services/web-scraper');
             const scraper = new WebScraperService();
             const url = message.url;
@@ -355,7 +356,27 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                     aiData.chat_id = chatId;
                 }
 
-                post({ command: CHAT_COMMANDS.CHAT_STREAM_START });
+                const appSettings = settingsManager.getSettings();
+                const isAgentic = agentId && agentId !== 'default' && 
+                                  FileConfigService.getInstance().getAgents().some((p: any) => p.id === agentId);
+                let toolsDisabledWarning = false;
+                if (isAgentic) {
+                    const tools = appSettings.tools || {};
+                    if (
+                        tools.sys_tools === 'off' &&
+                        tools.web_tools === 'off' &&
+                        tools.cognitive_tools === 'off' &&
+                        tools.artifact_tools === 'off' &&
+                        tools.browser_tools === 'off'
+                    ) {
+                        toolsDisabledWarning = true;
+                    }
+                }
+
+                post({ 
+                    command: CHAT_COMMANDS.CHAT_STREAM_START,
+                    toolsDisabledWarning
+                });
 
                 try {
                     const { text: aiResponse, usage, hitStepLimit, continuationMaxSteps } = await coreService.processChatRequest(
@@ -522,7 +543,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'cancelChatRequest':
+        case CHAT_COMMANDS.CANCEL_CHAT_REQUEST:
             {
                 const chatId = message.data.chat_id;
                 outputChannel.appendLine(`[Cancel] Received cancelChatRequest for chatId=${chatId}`);
@@ -696,7 +717,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'openFile':
+        case CHAT_COMMANDS.OPEN_FILE:
             {
                 let filePath = message.data.path;
                 if (!filePath) { return; }
@@ -711,7 +732,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'openArtifact':
+        case CHAT_COMMANDS.OPEN_ARTIFACT:
             {
                 const artifactName = message.data.name;
                 if (!artifactName) { return; }
@@ -732,7 +753,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'openVirtualFile':
+        case CHAT_COMMANDS.OPEN_VIRTUAL_FILE:
             {
                 const { name, text, language } = message.data;
                 if (!text) { return; }
@@ -745,7 +766,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'openExternal':
+        case CHAT_COMMANDS.OPEN_EXTERNAL:
             {
                 const url = message.data.url;
                 if (url) {
@@ -753,7 +774,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 }
                 break;
             }
-        case 'addFileByPath':
+        case CHAT_COMMANDS.ADD_FILE_BY_PATH:
             {
                 const relativePath = message.data.path;
                 if (!relativePath) { break; }
@@ -1059,7 +1080,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'chatToolApproval':
+        case CHAT_COMMANDS.CHAT_TOOL_APPROVAL:
             {
                 const { toolCallId, approved } = message.data;
                 if (approved) {
@@ -1071,7 +1092,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'chatReviewDiff':
+        case CHAT_COMMANDS.CHAT_REVIEW_DIFF:
             {
                 const { toolCallId, toolName, args, isGlobalReview } = message.data;
                 
@@ -1124,7 +1145,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'acceptFile':
+        case CHAT_COMMANDS.ACCEPT_FILE:
             {
                 const { uri } = message.data;
                 const fileUri = vscode.Uri.parse(uri);
@@ -1143,7 +1164,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
         
-        case 'rejectFile':
+        case CHAT_COMMANDS.REJECT_FILE:
             {
                 const { uri } = message.data;
                 const fileUri = vscode.Uri.parse(uri);
@@ -1212,7 +1233,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'refreshIndex':
+        case CHAT_COMMANDS.REFRESH_INDEX:
             {
                 const chatId = message.data?.chatId;
                 const { WorkspaceIndexService } = require('../services/workspace-index');
@@ -1232,7 +1253,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'viewIndex':
+        case CHAT_COMMANDS.VIEW_INDEX:
             {
                 const chatId = message.data?.chatId;
                 const { WorkspaceIndexService } = require('../services/workspace-index');
@@ -1249,7 +1270,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'improvePrompt':
+        case CHAT_COMMANDS.IMPROVE_PROMPT:
             {
                 const userDraft = message.data.prompt;
                 const { WorkspaceIndexService } = require('../services/workspace-index');
@@ -1257,26 +1278,26 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 await wsIndex.refresh();
                 const fileTree = wsIndex.getCompactTreeString().substring(0, 3000);
                 // Do not dispose the singleton
-
+ 
                 const { aiRequest } = require('../api/ai');
                 const appSettings = settingsManager.getSettings();
                 const model = appSettings.models.textModel;
                 const customModel = (appSettings.customModels || []).find((cm: any) => cm.name === model);
-
+ 
                 const provider = customModel?.provider || appSettings.models.provider;
                 const pConfig = appSettings.models.providerSettings?.[provider] || {};
-
+ 
                 const apiKey = customModel?.apiKey || pConfig.apiKey || appSettings.models.apiKey || '';
                 const baseUrl = customModel?.baseUrl || pConfig.baseUrl || '';
-
+ 
                 outputChannel.appendLine(`[ImprovePrompt] Optimizing draft: "${userDraft.substring(0, 50)}..."`);
-
+ 
                 try {
                     const result = await aiRequest([
                         { role: 'system', content: `You are a prompt optimizer. Given a user's draft prompt and their project file tree, rewrite it to be clearer, more specific, and actionable for an AI coding assistant. Output ONLY the improved prompt text, nothing else. Do not use quotes around the output.` },
                         { role: 'user', content: `Draft prompt: "${userDraft}"\n\nProject files:\n${fileTree}` }
                     ], model, apiKey, 0.7, provider, baseUrl);
-
+ 
                     await post({
                         command: 'improvedPrompt',
                         content: result.content
@@ -1291,33 +1312,33 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 break;
             }
 
-        case 'suggestPrompts':
+        case CHAT_COMMANDS.SUGGEST_PROMPTS:
             {
                 const { WorkspaceIndexService } = require('../services/workspace-index');
                 const wsIndex = WorkspaceIndexService.getInstance();
                 await wsIndex.refresh();
                 const fileTree = wsIndex.getCompactTreeString().substring(0, 3000);
                 // Do not dispose the singleton
-
+ 
                 const { aiRequest } = require('../api/ai');
                 const appSettings = settingsManager.getSettings();
                 const model = appSettings.models.textModel;
                 const customModel = (appSettings.customModels || []).find((cm: any) => cm.name === model);
-
+ 
                 const provider = customModel?.provider || appSettings.models.provider;
                 const pConfig = appSettings.models.providerSettings?.[provider] || {};
-
+ 
                 const apiKey = customModel?.apiKey || pConfig.apiKey || appSettings.models.apiKey || '';
                 const baseUrl = customModel?.baseUrl || pConfig.baseUrl || '';
-
+ 
                 outputChannel.appendLine(`[SuggestPrompts] Generating prompt ideas...`);
-
+ 
                 try {
                     const result = await aiRequest([
                         { role: 'system', content: `You are a prompt optimizer. Analyze the project file tree and suggest 3 short, actionable tasks the user might want to do next. Output ONLY the 3 suggestions as a JSON array of strings.` },
                         { role: 'user', content: `Project files:\n${fileTree}` }
                     ], model, apiKey, 0.7, provider, baseUrl);
-
+ 
                     let suggestions: string[] = [];
                     try {
                         const cleaned = (result.content || '').replace(/```json\s*/g, '').replace(/```/g, '').trim();
@@ -1325,7 +1346,7 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                     } catch {
                         suggestions = ['Fix any open issues in the codebase', 'Add documentation to key functions', 'Optimize performance of the main module'];
                     }
-
+ 
                     await post({
                         command: 'suggestPromptsResult',
                         suggestions
@@ -1339,8 +1360,8 @@ Write comprehensive, well-structured Markdown. In your visible response, just co
                 }
                 break;
             }
-
-        case 'checkEssenceStatus':
+ 
+        case CHAT_COMMANDS.CHECK_ESSENCE_STATUS:
             {
                 try {
                     const { WorkspaceIndexService } = require('../services/workspace-index');
