@@ -556,7 +556,7 @@ span.logo svg {
   bottom: 0;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   z-index: 9999;
@@ -566,6 +566,7 @@ span.logo svg {
 }
 
 .modal-overlay.active {
+  display: flex;
   opacity: 1;
   pointer-events: auto;
 }
