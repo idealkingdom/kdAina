@@ -4,7 +4,7 @@ import * as fs from 'fs';
 
 import { OutputChannel } from 'vscode';
 import { SettingsManager } from '../services/settings-manager';
-import { MODEL_PROVIDER, getModelProviderOptions } from '../constants';
+import { getModelProviderOptions } from '../constants';
 import { outputChannel } from '../logger';
 import { ChatViewProvider } from '../chat/chat-view-provider';
 
