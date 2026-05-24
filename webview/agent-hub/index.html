@@ -16,17 +16,25 @@
   <!-- ─── TOP NAVIGATION ─────────────────────────────────────────────── -->
   <header class="hub-header">
     <div class="hub-logo">
-      <img src="{{LOGO_URI}}" width="28" height="28" alt="kdAina Logo" style="border-radius: 6px; box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);" />
+      <img src="{{LOGO_URI}}" width="28" height="28" alt="kdAina Logo" style="border-radius: 6px;" />
       <span class="hub-title">Agent Hub</span>
     </div>
     <nav class="hub-tabs">
       <button class="hub-tab active" data-tab="agents" id="tab-agents">
-        👤
+        👤&#xFE0E;
         Agents
       </button>
       <button class="hub-tab" data-tab="rules" id="tab-rules">
-        📜
+        ▤&#xFE0E;
         Rules
+      </button>
+      <button class="hub-tab" data-tab="providers" id="tab-providers">
+        ⛭&#xFE0E;
+        Providers
+      </button>
+      <button class="hub-tab" data-tab="models" id="tab-models">
+        ⟐&#xFE0E;
+        Models
       </button>
     </nav>
   </header>
@@ -41,8 +49,37 @@
           <p class="section-desc">Define custom agent identities, system prompts, and subagent delegation settings. Default agents are read-only; custom workspace agents are editable.</p>
         </div>
         <button class="hub-btn primary" id="btn-add-agent">
-          ➕ New Agent
+          + New Agent
         </button>
+      </div>
+      <div class="agents-toolbar">
+        <div class="search-wrapper">
+          <input type="text" id="agent-search" placeholder="Search agents..." class="hub-search-input">
+          <span class="search-clear" id="agent-search-clear" style="display: none;">&times;</span>
+        </div>
+        <div class="filter-controls">
+          <div class="filter-select-wrapper">
+            <select id="agent-filter-origin" class="hub-select">
+              <option value="all">All Origins</option>
+              <option value="builtin">Built-in</option>
+              <option value="workspace">Workspace</option>
+            </select>
+          </div>
+          <div class="filter-select-wrapper">
+            <select id="agent-filter-status" class="hub-select">
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div class="filter-select-wrapper">
+            <select id="agent-filter-type" class="hub-select">
+              <option value="all">All Roles</option>
+              <option value="subagent">Subagent (Callable)</option>
+              <option value="core">Core Agent</option>
+            </select>
+          </div>
+        </div>
       </div>
       <div class="agents-summary">
         <span class="agent-summary-pill"><strong id="agent-count">0</strong> agents</span>
@@ -50,7 +87,7 @@
       </div>
       <div id="agents-list" class="agents-list">
         <div class="empty-state" id="agents-empty">
-          <div class="empty-icon" style="font-size: 40px; margin-bottom: 16px;">👤</div>
+          <div class="empty-icon" style="font-size: 40px; margin-bottom: 16px;">👤&#xFE0E;</div>
           <h3>No agent profiles</h3>
           <p>Create agents with custom settings and system prompts.</p>
         </div>
@@ -60,9 +97,9 @@
     <!-- ─── RULES TAB ──────────────────────────────────────────────── -->
     <section id="panel-rules" class="hub-panel">
       <!-- Rules Warning Banner -->
-      <div class="rules-warning-banner" style="display: flex; align-items: flex-start; background: rgba(255, 165, 0, 0.1); border: 1px solid rgba(255, 165, 0, 0.2); padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 13px; line-height: 1.4; color: var(--vscode-notificationsWarning-foreground, #cca700);">
-        <span style="margin-right: 8px; flex-shrink: 0; margin-top: 2px;">⚠️</span>
-        <span><strong>Rule limits:</strong> Keep rules modular and concise. Avoid creating massive single files; instead, break them down into separate files to prevent system prompt bloat and context window overload.</span>
+      <div class="rules-warning-banner">
+        <span class="rules-warning-icon">⚠&#xFE0E;</span>
+        <span><strong>Rule limits:</strong> Rules are limited to 2000 characters each. For complex instructions, break them into multiple focused rules for better modularity and token efficiency.</span>
       </div>
   
       <div class="agents-header-row">
@@ -71,17 +108,143 @@
           <p class="section-desc">Define instructions and coding standards. Default rules are read-only; custom rules can be added per workspace.</p>
         </div>
         <button class="hub-btn primary" id="btn-add-rule">
-          ➕ New Rule
+          + New Rule
         </button>
+      </div>
+      <div class="rules-toolbar">
+        <div class="search-wrapper">
+          <input type="text" id="rule-search" placeholder="Search rules..." class="hub-search-input">
+          <span class="search-clear" id="rule-search-clear" style="display: none;">&times;</span>
+        </div>
+        <div class="filter-controls">
+          <div class="filter-select-wrapper">
+            <select id="rule-filter-origin" class="hub-select">
+              <option value="all">All Origins</option>
+              <option value="builtin">Built-in</option>
+              <option value="workspace">Workspace</option>
+            </select>
+          </div>
+          <div class="filter-select-wrapper">
+            <select id="rule-filter-scope" class="hub-select">
+              <option value="all">All Scopes</option>
+              <option value="global">Global</option>
+              <option value="agent">Agent</option>
+            </select>
+          </div>
+        </div>
       </div>
       <div class="agents-summary">
         <span class="agent-summary-pill"><strong id="rule-count">0</strong> rules</span>
       </div>
       <div id="rules-list" class="agents-list">
         <div class="empty-state" id="rules-empty">
-          <div class="empty-icon" style="font-size: 40px; margin-bottom: 16px;">📜</div>
+          <div class="empty-icon" style="font-size: 40px; margin-bottom: 16px;">▤&#xFE0E;</div>
           <h3>No rules defined</h3>
           <p>Create rules to enforce coding standards, style guides, or custom instructions.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── PROVIDERS TAB ──────────────────────────────────────────── -->
+    <section id="panel-providers" class="hub-panel">
+      <div class="agents-header-row">
+        <div>
+          <h2 class="section-title">Providers</h2>
+          <p class="section-desc">Manage AI provider endpoints. Built-in providers include OpenAI, Gemini, Anthropic, Mistral, OpenRouter, DeepInfra, and Groq. Add custom providers for self-hosted or third-party APIs.</p>
+        </div>
+        <button class="hub-btn primary" id="btn-add-provider">
+          + New Provider
+        </button>
+      </div>
+      <div class="providers-toolbar">
+        <div class="search-wrapper">
+          <input type="text" id="provider-search" placeholder="Search providers..." class="hub-search-input">
+          <span class="search-clear" id="provider-search-clear" style="display: none;">&times;</span>
+        </div>
+        <div class="filter-controls">
+          <div class="filter-select-wrapper">
+            <select id="provider-filter-origin" class="hub-select">
+              <option value="all">All Origins</option>
+              <option value="builtin">Built-in</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="agents-summary">
+        <span class="agent-summary-pill"><strong id="provider-count">0</strong> providers</span>
+      </div>
+      <div id="providers-list" class="agents-list">
+        <div class="empty-state" id="providers-empty">
+          <div class="empty-icon" style="font-size: 40px; margin-bottom: 16px;">⛭&#xFE0E;</div>
+          <h3>No providers</h3>
+          <p>Add a provider to connect to an AI API endpoint.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── MODELS TAB ─────────────────────────────────────────────── -->
+    <section id="panel-models" class="hub-panel">
+      <div class="agents-header-row">
+        <div>
+          <h2 class="section-title">Models</h2>
+          <p class="section-desc">Browse and manage models from your providers. Models are defined in provider YAML files.</p>
+        </div>
+        <button class="hub-btn primary" id="btn-add-model">
+          + Add Model
+        </button>
+      </div>
+      <div class="models-toolbar">
+        <div class="search-wrapper">
+          <input type="text" id="model-search" placeholder="Search models..." class="hub-search-input">
+          <span class="search-clear" id="model-search-clear" style="display: none;">&times;</span>
+        </div>
+        <div class="filter-controls">
+          <div class="filter-select-wrapper">
+            <select id="model-filter-provider" class="hub-select">
+              <option value="all">All Providers</option>
+            </select>
+          </div>
+          <div class="filter-select-wrapper">
+            <select id="model-filter-type" class="hub-select">
+              <option value="all">All Types</option>
+              <option value="text">Text</option>
+              <option value="image">Image</option>
+              <option value="reasoning">Reasoning</option>
+            </select>
+          </div>
+          <div class="filter-select-wrapper">
+            <select id="model-filter-tier" class="hub-select">
+              <option value="all">All Tiers</option>
+              <option value="frontier">Frontier (Pro)</option>
+              <option value="mid">Mid</option>
+              <option value="small">Small (Lite)</option>
+            </select>
+          </div>
+          <div class="filter-select-wrapper">
+            <select id="model-filter-status" class="hub-select">
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="agents-summary models-summary-row">
+        <span class="agent-summary-pill"><strong id="model-count">0</strong> models</span>
+        <div class="models-action-buttons">
+          <span style="font-size: 11px; color: var(--hub-text-muted);">Toggle All</span>
+          <label class="model-toggle" title="Toggle all filtered models">
+            <input type="checkbox" id="toggle-all-models">
+            <span class="model-toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      <div id="models-list" class="agents-list">
+        <div class="empty-state" id="models-empty">
+          <div class="empty-icon" style="font-size: 40px; margin-bottom: 16px;">⟐&#xFE0E;</div>
+          <h3>No models</h3>
+          <p>Models are loaded from provider YAML files.</p>
         </div>
       </div>
     </section>
