@@ -73,6 +73,14 @@ window.addEventListener('message', event => {
             toggleSendButton("generating");
             activeStreamAccumulator = "";
             activeStreamNode = null;
+            const warningBanner = document.getElementById('agent-warning-banner');
+            if (warningBanner) {
+                if (message.toolsDisabledWarning) {
+                    warningBanner.classList.remove('hidden');
+                } else {
+                    warningBanner.classList.add('hidden');
+                }
+            }
             break;
 
         case CHAT_COMMANDS.CHAT_STREAM_CHUNK:
