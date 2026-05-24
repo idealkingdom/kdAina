@@ -29,6 +29,8 @@ function renderAgentDropdown(agents) {
 
     (agents || []).forEach(agent => {
         if (!agent.isActive) { return; }
+        // Subagents (callable-only) should not appear in chatbox agent rotation
+        if (agent.callable) { return; }
         const opt = document.createElement('div');
         opt.className = 'mode-option';
         opt.dataset.value = agent.id;
@@ -689,6 +691,16 @@ function detectsQuestion(text) {
 
 if (dismissQuestionBtn) {
     dismissQuestionBtn.addEventListener('click', hideQuestionBanner);
+}
+
+const dismissWarningBtn = document.getElementById('dismiss-warning-btn');
+if (dismissWarningBtn) {
+    dismissWarningBtn.addEventListener('click', () => {
+        const warningBanner = document.getElementById('agent-warning-banner');
+        if (warningBanner) {
+            warningBanner.classList.add('hidden');
+        }
+    });
 }
 
 
