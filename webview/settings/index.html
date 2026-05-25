@@ -6,71 +6,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Companion Settings</title>
     <link rel="stylesheet" href="style.css">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&display=swap"
-        rel="stylesheet">
     <script>
         window.VS_MODELS = "{{MODELS}}";
     </script>
 </head>
 
-<body class="dark-theme">
-    <div class="app-layout">
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <div class="logo-box">
-                    <img src="{{LOGO_URI}}" width="44" height="44" class="ai-premium-logo" alt="kdAina Logo" />
-                </div>
-                <div class="header-text">
-                    <h2>kdAina</h2>
-                    <span class="badge">Configuration</span>
-                </div>
-            </div>
+<body>
+    <!-- ─── TOP NAVIGATION ──────────────────────────────────────────── -->
+    <header class="hub-header">
+        <div class="hub-logo">
+            <img src="{{LOGO_URI}}" width="28" height="28" class="ai-premium-logo" alt="kdAina Logo" style="border-radius: 6px;" />
+            <span class="hub-title">Settings</span>
+        </div>
+        <nav class="hub-tabs">
+            <button class="nav-item active" data-tab="general">
+                ⚙&#xFE0E; General
+            </button>
+            <button class="nav-item" data-tab="appearance">
+                ◑ Appearance
+            </button>
+            <button class="nav-item" data-tab="tools">
+                ⛭&#xFE0E; Tools
+            </button>
+        </nav>
+    </header>
 
-            <nav class="sidebar-nav">
-                <button class="nav-item active" data-tab="general">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path
-                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
-                        </path>
-                    </svg>
-                    General
-                </button>
-                <button class="nav-item" data-tab="providers">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path
-                            d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
-                        </path>
-                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-                        <line x1="12" y1="22.08" x2="12" y2="12"></line>
-                    </svg>
-                    Models
-                </button>
-                <button class="nav-item" data-tab="appearance">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path>
-                    </svg>
-                    Appearance
-                </button>
-                <button class="nav-item" data-tab="tools">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                    </svg>
-                    Tools
-                </button>
-            </nav>
-
-        </aside>
-
-        <!-- Main Content -->
-        <main class="content-area">
+    <!-- Main Content -->
+    <main class="content-area">
 
             <!-- GENERAL TAB -->
             <section id="general" class="tab-view active">
@@ -170,16 +132,7 @@
                             </label>
                         </div>
 
-                        <div class="setting-item">
-                            <div class="setting-item-content">
-                                <div class="setting-item-label">Enable Browser Tools</div>
-                                <p class="setting-item-desc">Allow agent to use browser automation. Available tools: <code>browser_open</code>, <code>browser_snapshot</code>, <code>browser_action</code>, <code>browser_get</code>, <code>browser_evaluate</code>, <code>browser_close</code>.</p>
-                            </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="enableBrowserTools">
-                                <span class="toggle-slider"></span>
-                            </label>
-                        </div>
+
                     </div>
 
                     <div class="panel-section" style="margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 24px;">
@@ -200,52 +153,15 @@
                 </div>
             </section>
 
-            <!-- MODELS TAB -->
-            <section id="providers" class="tab-view">
-                <div class="view-header actions-header">
-                    <div>
-                        <h1>Models</h1>
-                        <p>Manage your AI models. Built-in models use the provider's default endpoint. Add custom models for self-hosted or third-party APIs.</p>
-                    </div>
-                    <button class="secondary-btn accent-glow" id="btn-add-model">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2">
-                            <path d="M5 12h14" />
-                            <path d="M12 5v14" />
-                        </svg>
-                        Add Model
-                    </button>
-                </div>
-
-                <!-- Hidden selects for backward compat (used by JS internally) -->
-                <select id="providerSelect" class="styled-input" style="display:none;">
-                    <option value="OpenAI">OpenAI</option>
-                    <option value="Gemini">Gemini</option>
-                </select>
-                <select id="textModelInput" style="display:none;">
-                    <option value=""></option>
-                </select>
-                <select id="imageModelInput" style="display:none;">
-                    <option value=""></option>
-                </select>
-                <input type="hidden" id="baseUrlInput" value="">
-                <input type="hidden" id="apiKeyInput" value="">
-
-                <!-- Model List -->
-                <div class="glass-panel model-table-panel">
-                    <!-- Compact column legend -->
-                    <div class="model-table-legend">
-                        <span class="legend-left">Models</span>
-                    </div>
-
-                    <!-- All models in one flat list -->
-                    <div class="model-section-body" id="model-list-body">
-                        <!-- Populated by JS -->
-                    </div>
-                </div>
-            </section>
-
-
+            <!-- Hidden model/provider selects (used internally by settings JS) -->
+            <select id="providerSelect" class="styled-input" style="display:none;">
+                <option value="OpenAI">OpenAI</option>
+                <option value="Gemini">Gemini</option>
+            </select>
+            <select id="textModelInput" style="display:none;"><option value=""></option></select>
+            <select id="imageModelInput" style="display:none;"><option value=""></option></select>
+            <input type="hidden" id="baseUrlInput" value="">
+            <input type="hidden" id="apiKeyInput" value="">
 
 
             <!-- APPEARANCE TAB -->
@@ -405,7 +321,6 @@
             </section>
 
         </main>
-    </div>
 
     <!-- Notification Overlay -->
     <div id="toastNotification" class="toast hidden">
@@ -428,36 +343,7 @@
         </div>
     </div>
 
-    <!-- Add Model Modal -->
-    <div id="addModelModal" class="modal-overlay hidden">
-        <div class="modal-container modal-wide">
-            <div class="modal-header modal-header-row">
-                <h3>Add Model</h3>
-                <button class="icon-btn-close" id="addModelCloseBtn" title="Close">&times;</button>
-            </div>
-            <div class="modal-body modal-form">
-                <div class="form-group">
-                    <label><span class="required-mark">*</span> Provider</label>
-                    <select id="addModelProvider" class="styled-input">
-                        <option value="" disabled selected>Model Provider</option>
-                        <option value="OpenAI">OpenAI</option>
-                        <option value="Gemini">Gemini</option>
-                        <option value="Azure OpenAI">Azure OpenAI</option>
-                        <option value="Anthropic">Anthropic</option>
-                        <option value="Custom">Custom / Other</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label><span class="required-mark">*</span> Model</label>
-                    <input type="text" id="addModelName" class="styled-input" placeholder="e.g. gpt-4o, llama-3.1-70b">
-                </div>
-            </div>
 
-            <div class="modal-footer">
-                <button id="addModelSubmitBtn" class="primary-btn modal-submit-btn">Add Model</button>
-            </div>
-        </div>
-    </div>
 
     <script type="module" src="settings.js"></script>
 </body>
