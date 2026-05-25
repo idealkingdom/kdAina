@@ -1,0 +1,22 @@
+name: Groq
+baseUrl: https://api.groq.com/openai/v1
+models:
+  text:
+    - llama-4-scout
+    - llama-4-maverick
+    - qwen-qwq-32b
+    - kimi-k2
+    - llama-3.3-70b-versatile
+    - deepseek-r1-distill-llama-70b
+  image:
+    - llama-3.3-70b-versatile
+supportsReasoning:
+  - deepseek-r1-distill-llama-70b
+  - qwen-qwq-32b
+tiers:
+  llama-4-scout: frontier
+  llama-4-maverick: mid
+  qwen-qwq-32b: frontier
+  kimi-k2: mid
+  llama-3.3-70b-versatile: mid
+  deepseek-r1-distill-llama-70b: frontier
