@@ -1,0 +1,41 @@
+name: Mistral
+baseUrl: https://api.mistral.ai/v1
+models:
+  text:
+    - mistral-large-latest
+    - mistral-large-2411
+    - pixtral-large-latest
+    - pixtral-12b-latest
+    - codestral-latest
+    - mistral-small-latest
+    - ministral-8b-latest
+    - ministral-3b-latest
+    - mistral-large-3
+    - mistral-medium-3.5
+    - mistral-small-4
+    - ministral-8b
+    - ministral-3b
+  image:
+    - pixtral-large-latest
+    - pixtral-12b-latest
+    - mistral-large-3
+    - mistral-small-4
+supportsReasoning:
+  - mistral-large-latest
+  - mistral-large-2411
+  - mistral-large-3
+  - mistral-medium-3.5
+tiers:
+  mistral-large-latest: frontier
+  mistral-large-2411: frontier
+  pixtral-large-latest: frontier
+  pixtral-12b-latest: mid
+  codestral-latest: mid
+  mistral-small-latest: mid
+  ministral-8b-latest: small
+  ministral-3b-latest: small
+  mistral-large-3: frontier
+  mistral-medium-3.5: mid
+  mistral-small-4: mid
+  ministral-8b: small
+  ministral-3b: small
