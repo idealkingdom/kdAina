@@ -1,0 +1,35 @@
+name: Anthropic
+baseUrl: https://api.anthropic.com/v1
+models:
+  text:
+    - claude-3-5-sonnet-latest
+    - claude-3-5-haiku-latest
+    - claude-3-opus-latest
+    - claude-3-5-sonnet-20241022
+    - claude-3-5-haiku-20241022
+    - claude-3-opus-20240229
+    - claude-opus-4-7
+    - claude-sonnet-4-6
+    - claude-opus-4-6
+    - claude-sonnet-4-5-20250929
+    - claude-haiku-4-5-20251001
+  image:
+    - claude-3-5-sonnet-latest
+    - claude-3-5-sonnet-20241022
+    - claude-sonnet-4-6
+    - claude-opus-4-6
+supportsReasoning:
+  - claude-opus-4-7
+  - claude-opus-4-6
+tiers:
+  claude-3-5-sonnet-latest: frontier
+  claude-3-5-haiku-latest: mid
+  claude-3-opus-latest: frontier
+  claude-3-5-sonnet-20241022: frontier
+  claude-3-5-haiku-20241022: mid
+  claude-3-opus-20240229: frontier
+  claude-opus-4-7: frontier
+  claude-sonnet-4-6: frontier
+  claude-opus-4-6: frontier
+  claude-sonnet-4-5-20250929: frontier
+  claude-haiku-4-5-20251001: small
