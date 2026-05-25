@@ -1,0 +1,31 @@
+name: DeepInfra
+baseUrl: https://api.deepinfra.com/v1/openai
+models:
+  text:
+    - deepseek-ai/DeepSeek-V4-Pro
+    - deepseek-ai/DeepSeek-V4-Flash
+    - moonshotai/Kimi-K2.6
+    - meta-llama/Llama-3.3-70B-Instruct
+    - deepseek-ai/DeepSeek-V3
+    - deepseek-ai/DeepSeek-R1
+    - Qwen/Qwen2.5-72B-Instruct
+    - Qwen/Qwen2.5-Coder-32B-Instruct
+  image:
+    - moonshotai/Kimi-K2.6
+    - meta-llama/Llama-3.3-70B-Instruct
+    - Qwen/Qwen2.5-72B-Instruct
+supportsReasoning:
+  - deepseek-ai/DeepSeek-V4-Pro
+  - deepseek-ai/DeepSeek-V4-Flash
+  - moonshotai/Kimi-K2.6
+  - deepseek-ai/DeepSeek-R1
+  - deepseek-ai/DeepSeek-V3
+tiers:
+  deepseek-ai/DeepSeek-V4-Pro: frontier
+  deepseek-ai/DeepSeek-V4-Flash: mid
+  moonshotai/Kimi-K2.6: frontier
+  meta-llama/Llama-3.3-70B-Instruct: mid
+  deepseek-ai/DeepSeek-V3: frontier
+  deepseek-ai/DeepSeek-R1: frontier
+  Qwen/Qwen2.5-72B-Instruct: mid
+  Qwen/Qwen2.5-Coder-32B-Instruct: mid
