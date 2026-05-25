@@ -19,7 +19,6 @@ let currentSettings = {
         commandSafetyMode: 'smart',
         alwaysProceed: false,
         enableTerminalSandbox: false,
-        enableBrowserTools: true,
         newChatSessionPlacement: 'window'
     },
     ui: {
@@ -143,7 +142,6 @@ const commandSafetyMode = document.getElementById('commandSafetyMode');
 const allowExternalMediaToggle = document.getElementById('allowExternalMedia');
 const contextModeToggle = document.getElementById('contextModeToggle');
 const enableTerminalSandboxToggle = document.getElementById('enableTerminalSandbox');
-const enableBrowserToolsToggle = document.getElementById('enableBrowserTools');
 const enableSuggestionsToggle = document.getElementById('enableSuggestions');
 const newChatSessionPlacementInput = document.getElementById('newChatSessionPlacement');
 let isKeyVisible = false;
@@ -202,18 +200,7 @@ if (enableTerminalSandboxToggle) {
     });
 }
 
-if (enableBrowserToolsToggle) {
-    enableBrowserToolsToggle.addEventListener('change', (e) => {
-        if (!currentSettings.permissions) currentSettings.permissions = {};
-        currentSettings.permissions.enableBrowserTools = e.target.checked;
-        persistSettings();
-        
-        vscode.postMessage({
-            command: 'saveSetting',
-            data: { category: 'permissions', key: 'enableBrowserTools', value: e.target.checked }
-        });
-    });
-}
+
 
 if (enableSuggestionsToggle) {
     enableSuggestionsToggle.addEventListener('change', (e) => {
@@ -957,9 +944,7 @@ function populateForm() {
             enableTerminalSandboxToggle.checked = currentSettings.permissions.enableTerminalSandbox === true;
         }
 
-        if (enableBrowserToolsToggle) {
-            enableBrowserToolsToggle.checked = currentSettings.permissions.enableBrowserTools !== false;
-        }
+
 
         if (newChatSessionPlacementInput) {
             newChatSessionPlacementInput.value = currentSettings.permissions.newChatSessionPlacement || 'window';
@@ -1043,9 +1028,7 @@ function collectSettings() {
     if (enableTerminalSandboxToggle) {
         currentSettings.permissions.enableTerminalSandbox = enableTerminalSandboxToggle.checked;
     }
-    if (enableBrowserToolsToggle) {
-        currentSettings.permissions.enableBrowserTools = enableBrowserToolsToggle.checked;
-    }
+
     if (newChatSessionPlacementInput) {
         currentSettings.permissions.newChatSessionPlacement = newChatSessionPlacementInput.value;
     }
